@@ -2138,7 +2138,7 @@ PopupMenu.prototype = {
 
                 let [xPos, yPos] = this._calculatePosition();
 
-                switch (this.orientation) {
+                switch (this._orientation) {
                     case St.Side.TOP:
                     case St.Side.BOTTOM:
                         tweenParams["scale-y"] = 1;
@@ -2204,7 +2204,7 @@ PopupMenu.prototype = {
                 }
             }
 
-            switch (this.orientation) {
+            switch (this._orientation) {
                 case St.Side.TOP:
                 case St.Side.BOTTOM:
                     tweenParams["scale-y"] = 0;
