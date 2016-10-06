@@ -2041,8 +2041,6 @@ PopupMenu.prototype = {
     _init: function(sourceActor, orientation) {
         PopupMenuBase.prototype._init.call (this, sourceActor, 'popup-menu-content');
 
-        this._orientation = orientation;
-
         this.paint_id = 0;
         this.paint_count = 0;
         this.animating = false;
@@ -2051,6 +2049,8 @@ PopupMenu.prototype = {
         this.actor = new St.Bin({style_class: "popup-menu"})
         this.actor._delegate = this;
         this.actor.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
+
+        this.setOrientation(orientation);
 
         this._boxWrapper = new Cinnamon.GenericContainer();
         this._boxWrapper.connect('get-preferred-width', Lang.bind(this, this._boxGetPreferredWidth));
@@ -2082,7 +2082,25 @@ PopupMenu.prototype = {
      * the menu will try to place itself below the @sourcActor unless there is not enough room for it.
      */
     setOrientation: function(orientation) {
-        this.orientation = orientation;
+        switch (orientation) {
+            case St.Side.TOP:
+                this.actor.set_style_pseudo_class("top");
+                break;
+            case St.Side.BOTTOM:
+                this.actor.set_style_pseudo_class("bottom");
+                break;
+            case St.Side.RIGHT:
+                this.actor.set_style_pseudo_class("right");
+                break;
+            case St.Side.LEFT:
+                this.actor.set_style_pseudo_class("left");
+                break;
+            default:
+                global.logError("Invalid orientation "+orientation);
+                return;
+        }
+
+        this._orientation = orientation;
     },
 
     /*
