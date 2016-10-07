@@ -2147,7 +2147,7 @@ PopupMenu.prototype = {
             Mainloop.idle_add(Lang.bind(this, function() {
                 let tweenParams = {
                     transition: "linear",
-                    time: .25,
+                    time: .1,
                     onCompleteScope: this,
                     onComplete: function() {
                         this.animating = false;
@@ -2214,7 +2214,7 @@ PopupMenu.prototype = {
             this.animating = true;
             let tweenParams = {
                 transition: "linear",
-                time: .25,
+                time: .1,
                 onCompleteScope: this,
                 onComplete: function() {
                     this.animating = false;
@@ -2295,8 +2295,12 @@ PopupMenu.prototype = {
             }
         }
 
-        this.actor.style = 'max-height: ' + (maxHeight / global.ui_scale) + 'px; ' +
-                           'max-width: ' + (maxWidth / global.ui_scale) + 'px;';
+        let themeNode = this.actor.get_theme_node();
+        maxHeight -= (themeNode.get_border_width(St.Side.TOP) + themeNode.get_border_width(St.Side.BOTTOM));
+        maxWidth -= (themeNode.get_border_width(St.Side.LEFT) + themeNode.get_border_width(St.Side.RIGHT));
+
+        this.actor.style = 'max-height: ' + Math.floor(maxHeight / global.ui_scale) + 'px; ' +
+                           'max-width: ' + Math.floor(maxWidth / global.ui_scale) + 'px;';
     },
 
     _calculatePosition: function() {
@@ -2375,7 +2379,7 @@ PopupMenu.prototype = {
                 }
                 break;
         }
-        return [xPos, yPos];
+        return [Math.round(xPos), Math.round(yPos)];
     },
 
     _boxGetPreferredWidth: function (actor, forHeight, alloc) {
