@@ -41,7 +41,7 @@ PanelAppLauncherMenu.prototype = {
         Applet.AppletPopupMenu.prototype._init.call(this, launcher, orientation);
 
         let appinfo = this._launcher.getAppInfo();
-        
+
         this._actions = appinfo.list_actions();
         if (this._actions.length > 0) {
             for (let i = 0; i < this._actions.length; i++) {
@@ -51,7 +51,7 @@ PanelAppLauncherMenu.prototype = {
 
             this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         }
-        
+
         this.addAction(_("Launch"), Lang.bind(this, this._onLaunchActivate));
         this.addAction(_("Add"), Lang.bind(this, this._onAddActivate));
         this.addAction(_("Edit"), Lang.bind(this, this._onEditActivate));
@@ -80,7 +80,7 @@ PanelAppLauncherMenu.prototype = {
     _onEditActivate: function(event) {
         this._launcher.launchersBox.showAddLauncherDialog(event.get_time(), this._launcher);
     },
-    
+
     _launchAction: function(event, name) {
         this._launcher.launchAction(name);
     }
@@ -101,18 +101,20 @@ PanelAppLauncher.prototype = {
         this._applet = launchersBox;
         this.orientation = orientation;
 
-        this.actor = new St.Bin({ style_class: 'panel-launcher',
+        this.actor = new St.Bin({ style_class: 'launcher',
+                                  important: true,
                                   reactive: true,
                                   can_focus: true,
                                   x_fill: true,
-                                  y_fill: false,
+                                  y_fill: true,
                                   track_hover: true });
 
         this.actor._delegate = this;
         this.actor.connect('button-release-event', Lang.bind(this, this._onButtonRelease));
         this.actor.connect('button-press-event', Lang.bind(this, this._onButtonPress));
 
-        this._iconBox = new St.Bin({ name: 'panel-launcher-icon' });
+        this._iconBox = new St.Bin({ style_class: 'icon-box',
+                                     important: true });
         this._iconBox.connect('style-changed',
                               Lang.bind(this, this._onIconBoxStyleChanged));
         this._iconBox.connect('notify::allocation',
@@ -192,7 +194,7 @@ PanelAppLauncher.prototype = {
     },
 
     _animateIcon: function(step){
-        if (step>=3) return;
+        if (step >= 3) return;
         Tweener.addTween(this.icon,
                          { width: this.icon_anim_height * global.ui_scale,
                            height: this.icon_anim_height * global.ui_scale,
@@ -222,7 +224,7 @@ PanelAppLauncher.prototype = {
         if (this.isCustom()) this.appinfo.launch([], null);
         else this.app.open_new_window(-1);
     },
-    
+
     launchAction: function(name) {
         let allocation = this._iconBox.get_allocation_box();
         this._iconBox.width = allocation.x2 - allocation.x1;
@@ -313,11 +315,8 @@ MyApplet.prototype = {
         this._dragPlaceholderPos = -1;
         this._animatingPlaceholdersCount = 0;
 
-        this.myactor = new St.BoxLayout({ name: 'panel-launchers-box' });
-
-        if (this.orientation == St.Side.LEFT || this.orientation == St.Side.RIGHT) {
-            this._set_vertical_style();
-        }
+        this.myactor = new St.BoxLayout({ style_class: 'panel-launchers',
+                                          important: true });
 
         this.settings = new Settings.AppletSettings(this, metadata.uuid, instance_id);
         this.settings.bindProperty(Settings.BindingDirection.BIDIRECTIONAL,
@@ -340,10 +339,7 @@ MyApplet.prototype = {
 
         this.do_gsettings_import();
 
-        // We shouldn't need to call reload() here... since we get a "icon-theme-changed" signal when CSD starts.
-        // The reason we do is in case the Cinnamon icon theme is the same as the one specificed in GTK itself (in .config)
-        // In that particular case we get no signal at all.
-        this.reload();
+        this.on_orientation_changed(orientation);
 
         St.TextureCache.get_default().connect("icon-theme-changed", Lang.bind(this, this.reload));
     },
@@ -427,15 +423,18 @@ MyApplet.prototype = {
         this.reload();
     },
 
-    on_orientation_changed: function(neworientation) { 
-
+    on_orientation_changed: function(neworientation) {
         this.orientation = neworientation;
         if (this.orientation == St.Side.TOP || this.orientation == St.Side.BOTTOM) {
             this.myactor.remove_style_class_name('vertical');
             this.myactor.set_vertical(false);
-            this.actor.remove_style_class_name('vertical');
+            this.myactor.set_x_expand(false);
+            this.myactor.set_y_expand(true);
         } else {
-            this._set_vertical_style();
+            this.myactor.add_style_class_name('vertical');
+            this.myactor.set_vertical(true);
+            this.myactor.set_x_expand(true);
+            this.myactor.set_y_expand(false);
         }
         this.reload();
     },
@@ -445,19 +444,6 @@ MyApplet.prototype = {
 //
     getDisplayLayout: function() {
         return Applet.DisplayLayout.BOTH;
-    },
-
-//
-// NB if the styling does not set right initially, it may well be because there is padding
-// in the theme and panel-launchers-box has # rather than .
-//
-    _set_vertical_style: function() {
-        this.myactor.set_important(true);
-        this.myactor.set_x_align(Clutter.ActorAlign.CENTER);
-        this.myactor.add_style_class_name('vertical');
-        this.myactor.set_vertical(true);
-        this.actor.set_important(true);
-        this.actor.add_style_class_name('vertical');
     },
 
     reload: function() {
