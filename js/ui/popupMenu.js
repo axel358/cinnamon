@@ -2185,6 +2185,9 @@ PopupMenu.prototype = {
         }
         else {
             this.animating = false;
+            this.actor.scale_x = 1.0;
+            this.actor.scale_y = 1.0;
+            this.actor.opacity = 255;
             this.actor.show();
         }
 
