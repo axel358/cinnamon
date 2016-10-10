@@ -2219,6 +2219,8 @@ PopupMenu.prototype = {
                 onComplete: function() {
                     this.animating = false;
                     this.actor.hide();
+                    this.actor["scale-x"] = 1
+                    this.actor["scale-y"] = 1
                 }
             }
 
