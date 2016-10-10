@@ -267,7 +267,7 @@ PopupBaseMenuItem.prototype = {
             color.alpha / 255);
         cr.arc(width / 2, height / 2, width / 3, 0, 2 * Math.PI);
         cr.fill();
-        
+
         cr.$dispose();
     },
 
@@ -326,8 +326,9 @@ PopupBaseMenuItem.prototype = {
                     childWidth = 0;
                     for (let j = i; j < this._columnWidths.length; j++)
                         childWidth += this._columnWidths[j]
-                } else
+                } else {
                     childWidth = this._columnWidths[i];
+                }
             } else {
                 if (child.span == -1)
                     childWidth = forWidth - x;
@@ -428,7 +429,7 @@ PopupBaseMenuItem.prototype = {
                     childBox.x1 = x;
                     childBox.x2 = x + naturalWidth;
                 }
-                
+
                 //when somehow the actor is wider than the box, cut it off
                 if(childBox.x2 > box.x2)
                     childBox.x2 = box.x2;
@@ -448,7 +449,7 @@ PopupBaseMenuItem.prototype = {
                     childBox.x2 = x;
                     childBox.x1 = x - naturalWidth;
                 }
-                
+
                 //when somehow the actor is wider than the box, cut it off
                 if(childBox.x1 < box.x1)
                     childBox.x1 = box.x1;
@@ -748,8 +749,7 @@ PopupSliderMenuItem.prototype = {
 
         if (direction == Clutter.ScrollDirection.DOWN) {
             this._value = Math.max(0, this._value - SLIDER_SCROLL_STEP);
-        }
-        else if (direction == Clutter.ScrollDirection.UP) {
+        } else if (direction == Clutter.ScrollDirection.UP) {
             this._value = Math.min(1, this._value + SLIDER_SCROLL_STEP);
         }
 
@@ -1059,7 +1059,7 @@ PopupIndicatorMenuItem.prototype = {
 /**
  * #PopupMenuAbstractItem:
  * @short_description: A class to represent any abstract menu item.
- * 
+ *
  * This is an abstract class for create a binding between the PopupMenuItem class ,
  * and an abstract representation of a menu item. If you want to create a cinnamon
  * menu structure, you need to inherit from this class and implement the functions
@@ -1143,7 +1143,7 @@ PopupMenuAbstractItem.prototype = {
     },
 
     getLabel: function() {
-        return this._label; 
+        return this._label;
     },
 
     setLabel: function(label) {
@@ -1291,14 +1291,14 @@ PopupMenuAbstractItem.prototype = {
         if ((this.shellItem)&&(this.shellItem.label)) {
             let label = this.getLabel();
             // The separator item might not even have a hidden label
-            if (this.shellItem.label) 
+            if (this.shellItem.label)
                 this.shellItem.label.set_text(label);
         }
     },
 
     _updateOrnament: function() {
         // Separators and alike might not have gotten the setOrnament function
-        if ((this.shellItem)&&(this.shellItem.setOrnament)) { 
+        if ((this.shellItem)&&(this.shellItem.setOrnament)) {
             if (this.getToggleType() == "checkmark") {
                 this.shellItem.setOrnament(OrnamentType.CHECK, this.getToggleState());
             } else if (this.getToggleType() == "radio") {
@@ -1323,18 +1323,18 @@ PopupMenuAbstractItem.prototype = {
         if ((this.shellItem)&&(this.shellItem._icon)) {
             let iconName = this.getIconName();
             if (iconName) {
-                if (this.shellItem.setIconName)
+                if (this.shellItem.setIconName) {
                     this.shellItem.setIconName(iconName);
-                else if (this.shellItem._icon) {
+                } else if (this.shellItem._icon) {
                     this.shellItem._icon.icon_name = iconName;
                     this.shellItem._icon.show();
                 }
             } else {
                 let gicon = this.getGdkIcon();
                 if (gicon) {
-                    if (this.shellItem.setGIcon)
+                    if (this.shellItem.setGIcon) {
                         this.shellItem.setGIcon(gicon);
-                    else if (this.shellItem._icon) {
+                    } else if (this.shellItem._icon) {
                         this.shellItem._icon.gicon = gicon;
                         this.shellItem._icon.show();
                     }
@@ -1637,7 +1637,7 @@ PopupMenuBase.prototype = {
      *
      * Returns (PopupMenu.PopupMenuItem): the menu item created.
      */
-    addSettingsAction: function(title, module) {		
+    addSettingsAction: function(title, module) {
         let menuItem = this.addAction(title, function() {
                            Util.spawnCommandLine("cinnamon-settings " + module);
                        });
@@ -1838,8 +1838,9 @@ PopupMenuBase.prototype = {
             if (position < items.length) {
                 before_item = items[position].actor;
                 this.box.insert_child_below(menuItem.actor, before_item);
-            } else
+            } else {
                 this.box.add(menuItem.actor);
+            }
         }
         if (menuItem instanceof PopupMenuSection) {
             this._connectSubMenuSignals(menuItem, menuItem);
@@ -1869,10 +1870,11 @@ PopupMenuBase.prototype = {
             // precise ways would require a lot more bookkeeping.
             this.connect('open-state-changed', Lang.bind(this, function() { this._updateSeparatorVisibility(menuItem); }));
             this.box.connect('allocation-changed', Lang.bind(this, function() { this._updateSeparatorVisibility(menuItem); }));
-        } else if (menuItem instanceof PopupBaseMenuItem)
+        } else if (menuItem instanceof PopupBaseMenuItem) {
             this._connectItemSignals(menuItem);
-        else
+        } else {
             throw TypeError("Invalid argument to PopupMenuBase.addMenuItem()");
+        }
 
         this.length++;
     },
@@ -2024,8 +2026,7 @@ function PopupMenu() {
     // that it's old code and only grab the ones we need
     if (arguments.length > 2) {
         this._init(arguments[0], arguments[2]);
-    }
-    else {
+    } else {
         this._init.apply(this, arguments);
     }
 }
@@ -2066,7 +2067,7 @@ PopupMenu.prototype = {
     /**
      * setArrowSide:
      * @side (St.Side): The new side of the menu
-     * 
+     *
      * Sets the orientation of the @sourceActor with respect to the menu. This function is deprecated and kept
      * for compatibility with older code. Please use %setOrientation instead.
      */
@@ -2077,7 +2078,7 @@ PopupMenu.prototype = {
     /**
      * setOrientation:
      * @orientation (St.Side): The new orientation of the menu
-     * 
+     *
      * Sets the orientation of the @sourceActor with respect to the menu. For example, if you use St.Side.TOP,
      * the menu will try to place itself below the @sourcActor unless there is not enough room for it.
      */
@@ -2161,7 +2162,7 @@ PopupMenu.prototype = {
                     case St.Side.BOTTOM:
                         tweenParams["scale-y"] = 1;
                         tweenParams["opacity"] = 255;
-                        this.actor["scale-y"] = 0;;
+                        this.actor["scale-y"] = 0;
                         if (this.sideFlipped) {
                             tweenParams["y"] = yPos;
                             yPos += this.actor.height;
@@ -2182,8 +2183,7 @@ PopupMenu.prototype = {
                 this.actor.opacity = 0;
                 Tweener.addTween(this.actor, tweenParams);
             }));
-        }
-        else {
+        } else {
             this.animating = false;
             this.actor.scale_x = 1.0;
             this.actor.scale_y = 1.0;
@@ -2246,8 +2246,7 @@ PopupMenu.prototype = {
                     break;
             }
             Tweener.addTween(this.actor, tweenParams);
-        }
-        else {
+        } else {
             this.animating = false;
             this.actor.hide();
         }
@@ -2296,8 +2295,7 @@ PopupMenu.prototype = {
         for (let panel of panels) {
             if (panel.panelPosition == PanelLoc.top || panel.panelPosition == PanelLoc.bottom) {
                 maxHeight -= panel.actor.height;
-            }
-            else {
+            } else {
                 maxWidth -= panel.actor.width;
             }
         }
@@ -2358,8 +2356,7 @@ PopupMenu.prototype = {
                 if (this._orientation == St.Side.BOTTOM) {
                     this.sideFlipped = true;
                     yPos = sourceBox.y1 - natHeight;
-                }
-                else {
+                } else {
                     this.sideFlipped = false;
                     yPos = sourceBox.y2;
                 }
@@ -2378,8 +2375,7 @@ PopupMenu.prototype = {
                 if (this._orientation == St.Side.RIGHT || x2 - sourceBox.x2 < natWidth) {
                     this.sideFlipped = true;
                     xPos = sourceBox.x1 - natWidth;
-                }
-                else {
+                } else {
                     this.sideFlipped = false;
                     xPos = sourceBox.x2;
                 }
@@ -2697,7 +2693,7 @@ PopupSubMenuMenuItem.prototype = {
         this.addActor(this._triangleBin, { expand: true,
                                            span: -1,
                                            align: St.Align.END });
-        
+
         this._triangle = arrowIcon(St.Side.RIGHT);
         this._triangle.pivot_point = new Clutter.Point({ x: 0.5, y: 0.6 });
         this._triangleBin.child = this._triangle;
@@ -2979,7 +2975,7 @@ PopupComboBoxMenuItem.prototype = {
  *
  * This class can build a cinnamon menu, using the instances of a heir of the
  * PopupMenuAbstractItem class. Please see the description of the PopupMenuAbstractItem
- * class to more details. To initialize the construction you need to provide the root 
+ * class to more details. To initialize the construction you need to provide the root
  * instance of your abstract menu items.
  */
 function PopupMenuFactory() {
@@ -3026,7 +3022,7 @@ PopupMenuFactory.prototype = {
 
         if (factoryMenu.shellItem)
             return factoryMenu.shellItem;
-      
+
         // The shell menu
         let shellItem = this._createShellItem(factoryMenu, launcher, orientation);
         this._attachToMenu(shellItem, factoryMenu);
@@ -3345,8 +3341,9 @@ PopupMenuManager.prototype = {
                 this._menuStack[i].close(false);
             oldMenu.close(false);
             newMenu.open(false);
-        } else
+        } else {
             newMenu.open(true);
+        }
     },
 
     _onMenuSourceEnter: function(menu) {
