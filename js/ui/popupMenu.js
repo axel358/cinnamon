@@ -2146,8 +2146,8 @@ PopupMenu.prototype = {
             // we need to give the actors a chance to allocate before animating so we get the correct values
             Mainloop.idle_add(Lang.bind(this, function() {
                 let tweenParams = {
-                    transition: "linear",
-                    time: .1,
+                    transition: "easeOutQuad",
+                    time: .15,
                     onCompleteScope: this,
                     onComplete: function() {
                         this.animating = false;
@@ -2160,7 +2160,8 @@ PopupMenu.prototype = {
                     case St.Side.TOP:
                     case St.Side.BOTTOM:
                         tweenParams["scale-y"] = 1;
-                        this.actor["scale-y"] = 0;
+                        tweenParams["opacity"] = 255;
+                        this.actor["scale-y"] = 0;;
                         if (this.sideFlipped) {
                             tweenParams["y"] = yPos;
                             yPos += this.actor.height;
@@ -2169,6 +2170,7 @@ PopupMenu.prototype = {
                     case St.Side.LEFT:
                     case St.Side.RIGHT:
                         tweenParams["scale-x"] = 1;
+                        tweenParams["opacity"] = 255;
                         this.actor["scale-x"] = 0;
                         if (this.sideFlipped) {
                             tweenParams["x"] = xPos;
@@ -2177,7 +2179,7 @@ PopupMenu.prototype = {
                         break;
                 }
                 this.actor.set_position(xPos, yPos);
-                this.actor.opacity = 255;
+                this.actor.opacity = 0;
                 Tweener.addTween(this.actor, tweenParams);
             }));
         }
@@ -2213,8 +2215,8 @@ PopupMenu.prototype = {
         if (animate && global.settings.get_boolean("desktop-effects-on-menus")) {
             this.animating = true;
             let tweenParams = {
-                transition: "linear",
-                time: .1,
+                transition: "easeInQuad",
+                time: .15,
                 onCompleteScope: this,
                 onComplete: function() {
                     this.animating = false;
@@ -2226,6 +2228,7 @@ PopupMenu.prototype = {
                 case St.Side.TOP:
                 case St.Side.BOTTOM:
                     tweenParams["scale-y"] = 0;
+                    tweenParams["opacity"] = 0;
                     if (this.sideFlipped) {
                         tweenParams["y"] = this.actor.y + this.actor.height;
                     }
@@ -2233,6 +2236,7 @@ PopupMenu.prototype = {
                 case St.Side.LEFT:
                 case St.Side.RIGHT:
                     tweenParams["scale-x"] = 0;
+                    tweenParams["opacity"] = 0;
                     if (this.sideFlipped) {
                         tweenParams["x"] = this.actor.x + this.actor.width;
                     }
