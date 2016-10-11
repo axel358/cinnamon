@@ -267,7 +267,7 @@ PopupBaseMenuItem.prototype = {
             color.alpha / 255);
         cr.arc(width / 2, height / 2, width / 3, 0, 2 * Math.PI);
         cr.fill();
-        
+
         cr.$dispose();
     },
 
@@ -428,7 +428,7 @@ PopupBaseMenuItem.prototype = {
                     childBox.x1 = x;
                     childBox.x2 = x + naturalWidth;
                 }
-                
+
                 //when somehow the actor is wider than the box, cut it off
                 if(childBox.x2 > box.x2)
                     childBox.x2 = box.x2;
@@ -448,7 +448,7 @@ PopupBaseMenuItem.prototype = {
                     childBox.x2 = x;
                     childBox.x1 = x - naturalWidth;
                 }
-                
+
                 //when somehow the actor is wider than the box, cut it off
                 if(childBox.x1 < box.x1)
                     childBox.x1 = box.x1;
@@ -1059,7 +1059,7 @@ PopupIndicatorMenuItem.prototype = {
 /**
  * #PopupMenuAbstractItem:
  * @short_description: A class to represent any abstract menu item.
- * 
+ *
  * This is an abstract class for create a binding between the PopupMenuItem class ,
  * and an abstract representation of a menu item. If you want to create a cinnamon
  * menu structure, you need to inherit from this class and implement the functions
@@ -1143,7 +1143,7 @@ PopupMenuAbstractItem.prototype = {
     },
 
     getLabel: function() {
-        return this._label; 
+        return this._label;
     },
 
     setLabel: function(label) {
@@ -1291,14 +1291,14 @@ PopupMenuAbstractItem.prototype = {
         if ((this.shellItem)&&(this.shellItem.label)) {
             let label = this.getLabel();
             // The separator item might not even have a hidden label
-            if (this.shellItem.label) 
+            if (this.shellItem.label)
                 this.shellItem.label.set_text(label);
         }
     },
 
     _updateOrnament: function() {
         // Separators and alike might not have gotten the setOrnament function
-        if ((this.shellItem)&&(this.shellItem.setOrnament)) { 
+        if ((this.shellItem)&&(this.shellItem.setOrnament)) {
             if (this.getToggleType() == "checkmark") {
                 this.shellItem.setOrnament(OrnamentType.CHECK, this.getToggleState());
             } else if (this.getToggleType() == "radio") {
@@ -1637,7 +1637,7 @@ PopupMenuBase.prototype = {
      *
      * Returns (PopupMenu.PopupMenuItem): the menu item created.
      */
-    addSettingsAction: function(title, module) {		
+    addSettingsAction: function(title, module) {
         let menuItem = this.addAction(title, function() {
                            Util.spawnCommandLine("cinnamon-settings " + module);
                        });
@@ -2066,7 +2066,7 @@ PopupMenu.prototype = {
     /**
      * setArrowSide:
      * @side (St.Side): The new side of the menu
-     * 
+     *
      * Sets the orientation of the @sourceActor with respect to the menu. This function is deprecated and kept
      * for compatibility with older code. Please use %setOrientation instead.
      */
@@ -2077,7 +2077,7 @@ PopupMenu.prototype = {
     /**
      * setOrientation:
      * @orientation (St.Side): The new orientation of the menu
-     * 
+     *
      * Sets the orientation of the @sourceActor with respect to the menu. For example, if you use St.Side.TOP,
      * the menu will try to place itself below the @sourcActor unless there is not enough room for it.
      */
@@ -2113,6 +2113,19 @@ PopupMenu.prototype = {
      */
     setSourceAlignment: function(alignment) {},
 
+    _setBackgroundColor: function() {
+        let temp_actor = new St.Bin ({ style_class: 'popup-menu-boxpointer' });
+        temp_actor.set_size(1.0, 1.0);
+        temp_actor.set_position(0.0, 0.0);
+        temp_actor.opacity = 0;
+        global.stage.add_actor(temp_actor);
+
+        let themeNode = temp_actor.get_theme_node();
+        let color = themeNode.get_color('-arrow-background-color');
+        this.actor.set_background_color(color);
+        temp_actor.destroy();
+    },
+
     /**
      * open:
      * @animate (boolean): whether to animate the open effect or not
@@ -2131,6 +2144,12 @@ PopupMenu.prototype = {
         if (global.menuStackLength == undefined)
             global.menuStackLength = 0;
         global.menuStackLength += 1;
+
+        let themeNode = this.actor.get_theme_node();
+        let color = themeNode.get_background_color().to_string();
+        if (color == "#00000000") {
+            this._setBackgroundColor();
+        }
 
         this.paint_id = this.actor.connect("paint", Lang.bind(this, this.on_paint));
 
@@ -2695,7 +2714,7 @@ PopupSubMenuMenuItem.prototype = {
         this.addActor(this._triangleBin, { expand: true,
                                            span: -1,
                                            align: St.Align.END });
-        
+
         this._triangle = arrowIcon(St.Side.RIGHT);
         this._triangle.pivot_point = new Clutter.Point({ x: 0.5, y: 0.6 });
         this._triangleBin.child = this._triangle;
@@ -2977,7 +2996,7 @@ PopupComboBoxMenuItem.prototype = {
  *
  * This class can build a cinnamon menu, using the instances of a heir of the
  * PopupMenuAbstractItem class. Please see the description of the PopupMenuAbstractItem
- * class to more details. To initialize the construction you need to provide the root 
+ * class to more details. To initialize the construction you need to provide the root
  * instance of your abstract menu items.
  */
 function PopupMenuFactory() {
@@ -3024,7 +3043,7 @@ PopupMenuFactory.prototype = {
 
         if (factoryMenu.shellItem)
             return factoryMenu.shellItem;
-      
+
         // The shell menu
         let shellItem = this._createShellItem(factoryMenu, launcher, orientation);
         this._attachToMenu(shellItem, factoryMenu);
