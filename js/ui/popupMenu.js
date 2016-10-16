@@ -2146,8 +2146,9 @@ PopupMenu.prototype = {
             // we need to give the actors a chance to allocate before animating so we get the correct values
             Mainloop.idle_add(Lang.bind(this, function() {
                 let tweenParams = {
-                    transition: "linear",
-                    time: .1,
+                    transition: "easeOutQuad",
+                    time: .15,
+                    opacity: 255,
                     onCompleteScope: this,
                     onComplete: function() {
                         this.animating = false;
@@ -2177,7 +2178,7 @@ PopupMenu.prototype = {
                         break;
                 }
                 this.actor.set_position(xPos, yPos);
-                this.actor.opacity = 255;
+                this.actor.opacity = 0;
                 Tweener.addTween(this.actor, tweenParams);
             }));
         }
@@ -2213,12 +2214,16 @@ PopupMenu.prototype = {
         if (animate && global.settings.get_boolean("desktop-effects-on-menus")) {
             this.animating = true;
             let tweenParams = {
-                transition: "linear",
-                time: .1,
+                transition: "easeInQuad",
+                time: .15,
                 onCompleteScope: this,
+                opacity: 0,
                 onComplete: function() {
                     this.animating = false;
                     this.actor.hide();
+                    this.actor["scale-x"] = 1;
+                    this.actor["scale-y"] = 1;
+                    this.actor.opacity = 255;
                 }
             }
 
@@ -2359,9 +2364,8 @@ PopupMenu.prototype = {
                 break;
             case St.Side.LEFT:
             case St.Side.RIGHT:
-                // get center position of the actor and calculate the position needed to center the menu on the actor
-                let yCenter = (this._slidePosition == -1) ? sourceBox.y1 + (sourceBox.y2 - sourceBox.y1) / 2 : this._slidePosition;
-                yPos = yCenter - (natHeight / 2);
+                // align the top of the menu with the top of the source
+                yPos = (this._slidePosition == -1) ? sourceBox.y1 : this._slidePosition;
 
                 // we don't want to go off the screen so we adjust if needed
                 if (yPos < y1) yPos = y1;

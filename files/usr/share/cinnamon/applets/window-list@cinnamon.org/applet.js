@@ -244,12 +244,12 @@ function AppMenuButton(applet, metaWindow, alert) {
 AppMenuButton.prototype = {
     _init: function(applet, metaWindow, alert) {
 
-	this.actor = new Cinnamon.GenericContainer({
-	    name: 'appMenu',
-	    style_class: 'window-list-item-box',
-	    reactive: true,
-	    can_focus: true,
-	    track_hover: true });
+        this.actor = new Cinnamon.GenericContainer({
+            name: 'appMenu',
+            style_class: 'window-list-item-box',
+            reactive: true,
+            can_focus: true,
+            track_hover: true });
 
         this._applet = applet;
         this.metaWindow = metaWindow;
@@ -385,7 +385,14 @@ AppMenuButton.prototype = {
     },
 
     _onDragBegin: function() {
-        this._draggable._overrideY = this.actor.get_transformed_position()[1];
+        if (this._applet.orientation == St.Side.TOP || this._applet.orientation == St.Side.BOTTOM) {
+            this._draggable._overrideY = this.actor.get_transformed_position()[1];
+            this._draggable._overrideX = null;
+        } else {
+            this._draggable._overrideX = this.actor.get_transformed_position()[0];
+            this._draggable._overrideY = null;
+        }
+
         this._tooltip.hide();
         this._tooltip.preventShow = true;
     },
@@ -826,7 +833,7 @@ AppMenuButtonRightClickMenu.prototype = {
         this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Close all/others
-        item = new PopupMenu.PopupMenuItem(_("Close all"));
+        item = new PopupMenu.PopupIconMenuItem(_("Close all"), "application-exit", St.IconType.SYMBOLIC);
         item.connect('activate', Lang.bind(this, function() {
             for (let window of this._windows)
                 if (window.actor.visible &&
@@ -835,7 +842,7 @@ AppMenuButtonRightClickMenu.prototype = {
         }));
         this.addMenuItem(item);
 
-        item = new PopupMenu.PopupMenuItem(_("Close others"));
+        item = new PopupMenu.PopupIconMenuItem(_("Close others"), "window-close", St.IconType.SYMBOLIC);
         item.connect('activate', Lang.bind(this, function() {
             for (let window of this._windows)
                 if (window.actor.visible &&
@@ -857,12 +864,12 @@ AppMenuButtonRightClickMenu.prototype = {
         }
 
         if (mw.minimized) {
-            item = new PopupMenu.PopupMenuItem(_("Restore"));
+            item = new PopupMenu.PopupIconMenuItem(_("Restore"), "view-sort-descending", St.IconType.SYMBOLIC);
             item.connect('activate', function() {
                 Main.activateWindow(mw, global.get_current_time());
             });
         } else {
-            item = new PopupMenu.PopupMenuItem(_("Minimize"));
+            item = new PopupMenu.PopupIconMenuItem(_("Minimize"), "view-sort-ascending", St.IconType.SYMBOLIC);
             item.connect('activate', function() {
                 mw.minimize(global.get_current_time());
             });
@@ -870,19 +877,19 @@ AppMenuButtonRightClickMenu.prototype = {
         this.addMenuItem(item);
 
         if (mw.get_maximized()) {
-            item = new PopupMenu.PopupMenuItem(_("Unmaximize"));
+            item = new PopupMenu.PopupIconMenuItem(_("Unmaximize"), "view-restore", St.IconType.SYMBOLIC);
             item.connect('activate', function() {
                 mw.unmaximize(Meta.MaximizeFlags.HORIZONTAL | Meta.MaximizeFlags.VERTICAL);
             });
         } else {
-            item = new PopupMenu.PopupMenuItem(_("Maximize"));
+            item = new PopupMenu.PopupIconMenuItem(_("Maximize"), "view-fullscreen", St.IconType.SYMBOLIC);
             item.connect('activate', function() {
                 mw.maximize(Meta.MaximizeFlags.HORIZONTAL | Meta.MaximizeFlags.VERTICAL);
             });
         }
         this.addMenuItem(item);
 
-        item = new PopupMenu.PopupMenuItem(_("Close"));
+        item = new PopupMenu.PopupIconMenuItem(_("Close"), "edit-delete", St.IconType.SYMBOLIC);
         item.connect('activate', function() {
             mw.delete(global.get_current_time());
         });
@@ -1283,7 +1290,11 @@ MyApplet.prototype = {
         let children = this.manager_container.get_children();
 
         let pos = children.length;
-        while (--pos && x < children[pos].get_allocation_box().x1);
+
+        if (this.manager_container.height > this.manager_container.width) // assume oriented vertically
+            while (--pos && y < children[pos].get_allocation_box().y1);
+        else
+            while (--pos && x < children[pos].get_allocation_box().x1);
 
         this._dragPlaceholderPos = pos;
 
