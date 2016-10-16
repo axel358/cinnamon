@@ -267,7 +267,7 @@ PopupBaseMenuItem.prototype = {
             color.alpha / 255);
         cr.arc(width / 2, height / 2, width / 3, 0, 2 * Math.PI);
         cr.fill();
-        
+
         cr.$dispose();
     },
 
@@ -428,7 +428,7 @@ PopupBaseMenuItem.prototype = {
                     childBox.x1 = x;
                     childBox.x2 = x + naturalWidth;
                 }
-                
+
                 //when somehow the actor is wider than the box, cut it off
                 if(childBox.x2 > box.x2)
                     childBox.x2 = box.x2;
@@ -448,7 +448,7 @@ PopupBaseMenuItem.prototype = {
                     childBox.x2 = x;
                     childBox.x1 = x - naturalWidth;
                 }
-                
+
                 //when somehow the actor is wider than the box, cut it off
                 if(childBox.x1 < box.x1)
                     childBox.x1 = box.x1;
@@ -1059,7 +1059,7 @@ PopupIndicatorMenuItem.prototype = {
 /**
  * #PopupMenuAbstractItem:
  * @short_description: A class to represent any abstract menu item.
- * 
+ *
  * This is an abstract class for create a binding between the PopupMenuItem class ,
  * and an abstract representation of a menu item. If you want to create a cinnamon
  * menu structure, you need to inherit from this class and implement the functions
@@ -1143,7 +1143,7 @@ PopupMenuAbstractItem.prototype = {
     },
 
     getLabel: function() {
-        return this._label; 
+        return this._label;
     },
 
     setLabel: function(label) {
@@ -1291,14 +1291,14 @@ PopupMenuAbstractItem.prototype = {
         if ((this.shellItem)&&(this.shellItem.label)) {
             let label = this.getLabel();
             // The separator item might not even have a hidden label
-            if (this.shellItem.label) 
+            if (this.shellItem.label)
                 this.shellItem.label.set_text(label);
         }
     },
 
     _updateOrnament: function() {
         // Separators and alike might not have gotten the setOrnament function
-        if ((this.shellItem)&&(this.shellItem.setOrnament)) { 
+        if ((this.shellItem)&&(this.shellItem.setOrnament)) {
             if (this.getToggleType() == "checkmark") {
                 this.shellItem.setOrnament(OrnamentType.CHECK, this.getToggleState());
             } else if (this.getToggleType() == "radio") {
@@ -1637,7 +1637,7 @@ PopupMenuBase.prototype = {
      *
      * Returns (PopupMenu.PopupMenuItem): the menu item created.
      */
-    addSettingsAction: function(title, module) {		
+    addSettingsAction: function(title, module) {
         let menuItem = this.addAction(title, function() {
                            Util.spawnCommandLine("cinnamon-settings " + module);
                        });
@@ -2046,7 +2046,7 @@ PopupMenu.prototype = {
         this.animating = false;
         this._slidePosition = -1;
 
-        this.actor = new St.Bin({style_class: "popup-menu"})
+        this.actor = new St.Bin({ style_class: 'popup-menu'});
         this.actor._delegate = this;
         this.actor.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
 
@@ -2066,7 +2066,7 @@ PopupMenu.prototype = {
     /**
      * setArrowSide:
      * @side (St.Side): The new side of the menu
-     * 
+     *
      * Sets the orientation of the @sourceActor with respect to the menu. This function is deprecated and kept
      * for compatibility with older code. Please use %setOrientation instead.
      */
@@ -2077,7 +2077,7 @@ PopupMenu.prototype = {
     /**
      * setOrientation:
      * @orientation (St.Side): The new orientation of the menu
-     * 
+     *
      * Sets the orientation of the @sourceActor with respect to the menu. For example, if you use St.Side.TOP,
      * the menu will try to place itself below the @sourcActor unless there is not enough room for it.
      */
@@ -2148,10 +2148,26 @@ PopupMenu.prototype = {
                 let tweenParams = {
                     transition: "easeOutQuad",
                     time: .15,
+                    onUpdate: Lang.bind(this, function(dest) {
+                        let clipY = 0;
+                        let clipX = 0;
+                        switch (this._orientation) {
+                            case St.Side.TOP:
+                            case St.Side.BOTTOM:
+                                clipY = dest - this.actor.y;
+                                break;
+                            case St.Side.LEFT:
+                            case St.Side.RIGHT:
+                                clipX = dest - this.actor.x;
+                                break;
+                        }
+                        this.actor.set_clip(clipX, clipY, this.actor.width, this.actor.height);
+                    }),
                     opacity: 255,
                     onCompleteScope: this,
                     onComplete: function() {
                         this.animating = false;
+                        this.actor.remove_clip();
                     }
                 }
 
@@ -2160,24 +2176,25 @@ PopupMenu.prototype = {
                 switch (this._orientation) {
                     case St.Side.TOP:
                     case St.Side.BOTTOM:
-                        tweenParams["scale-y"] = 1;
-                        this.actor["scale-y"] = 0;
-                        if (this.sideFlipped) {
-                            tweenParams["y"] = yPos;
-                            yPos += this.actor.height;
-                        }
+                        this.actor["x"] = xPos;
+                        tweenParams["y"] = yPos;
+                        tweenParams["onUpdateParams"] = [yPos];
+                        if (this.sideFlipped)
+                            this.actor["y"] = yPos + this.actor.height;
+                        else
+                            this.actor["y"] = yPos - this.actor.height;
                         break;
                     case St.Side.LEFT:
                     case St.Side.RIGHT:
-                        tweenParams["scale-x"] = 1;
-                        this.actor["scale-x"] = 0;
-                        if (this.sideFlipped) {
-                            tweenParams["x"] = xPos;
-                            xPos += this.actor.width;
-                        }
+                        this.actor["y"] = yPos;
+                        tweenParams["x"] = xPos;
+                        tweenParams["onUpdateParams"] = [xPos];
+                        if (this.sideFlipped)
+                            this.actor["x"] = xPos + this.actor.width;
+                        else
+                            this.actor["x"] = xPos - this.actor.width;
                         break;
                 }
-                this.actor.set_position(xPos, yPos);
                 this.actor.opacity = 0;
                 Tweener.addTween(this.actor, tweenParams);
             }));
@@ -2216,13 +2233,27 @@ PopupMenu.prototype = {
             let tweenParams = {
                 transition: "easeInQuad",
                 time: .15,
+                onUpdate: Lang.bind(this, function(dest) {
+                        let clipY = 0;
+                        let clipX = 0;
+                        switch (this._orientation) {
+                            case St.Side.TOP:
+                            case St.Side.BOTTOM:
+                                clipY = dest - this.actor.y;
+                                break;
+                            case St.Side.LEFT:
+                            case St.Side.RIGHT:
+                                clipX = dest - this.actor.x;
+                                break;
+                        }
+                        this.actor.set_clip(clipX, clipY, this.actor.width, this.actor.height);
+                    }),
                 onCompleteScope: this,
                 opacity: 0,
                 onComplete: function() {
                     this.animating = false;
                     this.actor.hide();
-                    this.actor["scale-x"] = 1;
-                    this.actor["scale-y"] = 1;
+                    this.actor.remove_clip();
                     this.actor.opacity = 255;
                 }
             }
@@ -2230,17 +2261,21 @@ PopupMenu.prototype = {
             switch (this._orientation) {
                 case St.Side.TOP:
                 case St.Side.BOTTOM:
-                    tweenParams["scale-y"] = 0;
-                    if (this.sideFlipped) {
+                    let yPos = this.actor.y;
+                    tweenParams["onUpdateParams"] = [yPos];
+                    if (this.sideFlipped)
                         tweenParams["y"] = this.actor.y + this.actor.height;
-                    }
+                    else
+                        tweenParams["y"] = this.actor.y - this.actor.height;
                     break;
                 case St.Side.LEFT:
                 case St.Side.RIGHT:
-                    tweenParams["scale-x"] = 0;
-                    if (this.sideFlipped) {
+                    let xPos = this.actor.x;
+                    tweenParams["onUpdateParams"] = [xPos];
+                    if (this.sideFlipped)
                         tweenParams["x"] = this.actor.x + this.actor.width;
-                    }
+                    else
+                        tweenParams["x"] = this.actor.x - this.actor.width;
                     break;
             }
             Tweener.addTween(this.actor, tweenParams);
@@ -2695,7 +2730,7 @@ PopupSubMenuMenuItem.prototype = {
         this.addActor(this._triangleBin, { expand: true,
                                            span: -1,
                                            align: St.Align.END });
-        
+
         this._triangle = arrowIcon(St.Side.RIGHT);
         this._triangle.pivot_point = new Clutter.Point({ x: 0.5, y: 0.6 });
         this._triangleBin.child = this._triangle;
@@ -2977,7 +3012,7 @@ PopupComboBoxMenuItem.prototype = {
  *
  * This class can build a cinnamon menu, using the instances of a heir of the
  * PopupMenuAbstractItem class. Please see the description of the PopupMenuAbstractItem
- * class to more details. To initialize the construction you need to provide the root 
+ * class to more details. To initialize the construction you need to provide the root
  * instance of your abstract menu items.
  */
 function PopupMenuFactory() {
@@ -3024,7 +3059,7 @@ PopupMenuFactory.prototype = {
 
         if (factoryMenu.shellItem)
             return factoryMenu.shellItem;
-      
+
         // The shell menu
         let shellItem = this._createShellItem(factoryMenu, launcher, orientation);
         this._attachToMenu(shellItem, factoryMenu);
