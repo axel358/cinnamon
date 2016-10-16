@@ -2082,24 +2082,6 @@ PopupMenu.prototype = {
      * the menu will try to place itself below the @sourcActor unless there is not enough room for it.
      */
     setOrientation: function(orientation) {
-        switch (orientation) {
-            case St.Side.TOP:
-                this.actor.set_style_pseudo_class("top");
-                break;
-            case St.Side.BOTTOM:
-                this.actor.set_style_pseudo_class("bottom");
-                break;
-            case St.Side.RIGHT:
-                this.actor.set_style_pseudo_class("right");
-                break;
-            case St.Side.LEFT:
-                this.actor.set_style_pseudo_class("left");
-                break;
-            default:
-                global.logError("Invalid orientation "+orientation);
-                return;
-        }
-
         this._orientation = orientation;
     },
 
@@ -2391,10 +2373,12 @@ PopupMenu.prototype = {
                 if (this._orientation == St.Side.BOTTOM) {
                     this.sideFlipped = true;
                     yPos = sourceBox.y1 - natHeight;
+                    this.actor.set_style_class_name('popup-menu bottom');
                 }
                 else {
                     this.sideFlipped = false;
                     yPos = sourceBox.y2;
+                    this.actor.set_style_class_name('popup-menu top');
                 }
                 break;
             case St.Side.LEFT:
@@ -2411,10 +2395,12 @@ PopupMenu.prototype = {
                 if (this._orientation == St.Side.RIGHT || x2 - sourceBox.x2 < natWidth) {
                     this.sideFlipped = true;
                     xPos = sourceBox.x1 - natWidth;
+                    this.actor.set_style_class_name('popup-menu right');
                 }
                 else {
                     this.sideFlipped = false;
                     xPos = sourceBox.x2;
+                    this.actor.set_style_class_name('popup-menu left');
                 }
                 break;
         }
