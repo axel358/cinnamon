@@ -134,8 +134,8 @@ class DeviceItem extends PopupMenu.PopupBaseMenuItem {
 
         let [device_id, vendor, model, device_type, icon, percentage, state, battery_level, time] = device;
 
-        this._box = new St.BoxLayout({ style_class: 'popup-device-menu-item' });
-        this._vbox = new St.BoxLayout({ style_class: 'popup-device-menu-item', vertical: true});
+        this._primaryBox = new St.BoxLayout({ style_class: 'device-box' });
+        this._vbox = new St.BoxLayout({ style_class: 'device-labels', vertical: true });
 
         let description = deviceTypeToString(device_type);
         if (vendor != "" || model != "") {
@@ -159,28 +159,36 @@ class DeviceItem extends PopupMenu.PopupBaseMenuItem {
         let statusLabel = null;
 
         if (battery_level == UPDeviceLevel.NONE) {
-            this.label = new St.Label({ text: "%s %d%%".format(description, Math.round(percentage)) });
-            statusLabel = new St.Label({ text: "%s".format(status), style_class: 'popup-inactive-menu-item' });
+            this.label = new St.Label({ text: "%s".format(description), style_class: 'primary-label' });
+            statusLabel = new St.Label({ text: "%s - %d%%".format(status, Math.round(percentage)), style_class: 'status-label' });
         } else {
-            this.label = new St.Label({ text: "%s".format(description) });
-            statusLabel = new St.Label({ text: "%s".format(deviceLevelToString(battery_level)), style_class: 'popup-inactive-menu-item' });
+            this.label = new St.Label({ text: "%s".format(description), style_class: 'primary-label' });
+            statusLabel = new St.Label({ text: "%s".format(deviceLevelToString(battery_level)), style_class: 'status-label' });
         }
 
         let device_icon = deviceToIcon(device_type, icon);
         if (device_icon == icon) {
-            this._icon = new St.Icon({ gicon: Gio.icon_new_for_string(icon), icon_type: St.IconType.SYMBOLIC, style_class: 'popup-menu-icon' });
+            this._icon = new St.Icon({ gicon: Gio.icon_new_for_string(icon), icon_type: St.IconType.SYMBOLIC, style_class: 'main-icon' });
         }
         else {
-            this._icon = new St.Icon({icon_name: device_icon, icon_type: St.IconType.SYMBOLIC, icon_size: 16});
+            this._icon = new St.Icon({icon_name: device_icon, icon_type: St.IconType.SYMBOLIC, style_class: 'main-icon' });
         }
 
-        this._box.add_actor(this._icon);
-        this._box.add_actor(this.label);
+        let applet_heading = new St.BoxLayout({
+            vertical: false,
+            style_class: 'applet-heading-icon',
+            y_align: Clutter.ActorAlign.CENTER
+        });
 
-        this._vbox.add_actor(this._box);
+        applet_heading.add_actor(this._icon);
+
+        this._vbox.add_actor(this.label);
         this._vbox.add_actor(statusLabel);
 
-        this.addActor(this._vbox);
+        this._primaryBox.add_actor(applet_heading);
+        this._primaryBox.add_actor(this._vbox);
+
+        this.addActor(this._primaryBox);
 
     }
 }
@@ -348,9 +356,7 @@ class CinnamonPowerApplet extends Applet.TextIconApplet {
         this.menu.addMenuItem(this.brightness);
         this.menu.addMenuItem(this.keyboard);
 
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-        this.menu.addSettingsAction(_("Power Settings"), 'power');
+        this._applet_context_menu.addSettingsAction(_("Power Settings"), 'power');
 
         this.actor.connect("scroll-event", Lang.bind(this, this._onScrollEvent));
 
