@@ -69,6 +69,31 @@ class CinnamonCalendarApplet extends Applet.TextApplet {
                 }
             );
 
+            let hbox = new St.BoxLayout(
+                {
+                    vertical: false
+                }
+            );
+
+            let applet_heading = new St.BoxLayout(
+                {
+                    vertical: false,
+                    style_class: 'applet-heading-icon',
+                    y_align: Clutter.ActorAlign.CENTER
+                }
+            );
+
+            let main_icon = new St.Icon(
+                {
+                    style_class: "main-icon",
+                    icon_name: 'cinnamon-calendar',
+                    icon_type: St.IconType.SYMBOLIC
+                }
+            );
+
+            applet_heading.add_actor(main_icon);
+            hbox.add_actor(applet_heading);
+
             this.go_home_button = new St.BoxLayout(
                 {
                     style_class: "calendar-today-home-button",
@@ -101,7 +126,8 @@ class CinnamonCalendarApplet extends Applet.TextApplet {
                 }
             }));
 
-            calbox.add_actor(this.go_home_button);
+            hbox.add_actor(this.go_home_button);
+            calbox.add_actor(hbox);
 
             // Calendar
             this._day = new St.Label(
@@ -125,12 +151,10 @@ class CinnamonCalendarApplet extends Applet.TextApplet {
 
             box.add_actor(calbox);
 
-            this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
             let item = new PopupMenu.PopupMenuItem(_("Date and Time Settings"));
             item.connect("activate", Lang.bind(this, this._onLaunchSettings));
 
-            this.menu.addMenuItem(item);
+            this._applet_context_menu.addMenuItem(item);
 
             this.settings.bind("show-events", "show_events", this._onSettingsChanged);
             this.settings.bind("use-custom-format", "use_custom_format", this._onSettingsChanged);
