@@ -106,7 +106,7 @@ ModalDialog.prototype = {
             let stack = new Cinnamon.Stack();
             this._backgroundBin.child = stack;
 
-            this._eventBlocker = new Clutter.Group({ reactive: true });
+            this._eventBlocker = new Clutter.Actor({ reactive: true });
             stack.add_actor(this._eventBlocker);
             stack.add_actor(this._dialogLayout);
         } else {
@@ -349,6 +349,7 @@ ModalDialog.prototype = {
             onComplete: () => {
                 this.state = State.CLOSED;
                 this._group.hide();
+                this.emit('closed');
             }
         });
     },
