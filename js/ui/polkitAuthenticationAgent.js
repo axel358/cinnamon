@@ -168,7 +168,8 @@ AuthenticationDialog.prototype = {
                            key:    Clutter.Escape
                          },
                          { label:  _("Authenticate"),
-                           action: Lang.bind(this, this._onAuthenticateButtonPressed)
+                           action: Lang.bind(this, this._onAuthenticateButtonPressed),
+                           default: true
                          }]);
 
         this._doneEmitted = false;
