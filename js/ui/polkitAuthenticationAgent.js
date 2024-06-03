@@ -35,6 +35,7 @@ const PolkitAgent = imports.gi.PolkitAgent;
 const ModalDialog = imports.ui.modalDialog;
 const CinnamonEntry = imports.ui.cinnamonEntry;
 const UserWidget = imports.ui.userWidget;
+const Util = imports.misc.util;
 
 const DIALOG_ICON_SIZE = 64;
 
@@ -48,11 +49,13 @@ AuthenticationDialog.prototype = {
     _init: function(actionId, message, cookie, userNames) {
         ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
 
+        global.log("Starting dialog");
+
         this.actionId = actionId;
         this.message = message;
         this.userNames = userNames;
         this._wasDismissed = false;
-        this._completed = false;
+        // this._completed = false;
 
         let mainContentBox = new St.BoxLayout({ style_class: 'polkit-dialog-main-layout',
                                                 vertical: true });
@@ -124,44 +127,77 @@ AuthenticationDialog.prototype = {
 
         this._onUserChanged();
 
-        this._passwordBox = new St.BoxLayout({ vertical: false });
-        mainContentBox.add(this._passwordBox);
-        this._passwordLabel = new St.Label(({ style_class: 'polkit-dialog-password-label' }));
-        this._passwordBox.add(this._passwordLabel,
-                              { y_align: St.Align.MIDDLE });
-        this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
-                                             text: "",
-                                             can_focus: true});
+        global.log("Creating passwordBox box");
+
+        let passwordBox = new St.BoxLayout({
+            style_class: 'polkit-dialog-password-layout',
+            vertical: true,
+        });
+
+        global.log("Creating the password entry");
+
+        // this._passwordBox = new St.BoxLayout({ vertical: false });
+        // mainContentBox.add(this._passwordBox);
+        // this._passwordLabel = new St.Label(({ style_class: 'polkit-dialog-password-label' }));
+        // this._passwordBox.add(this._passwordLabel,
+        //                       { y_align: St.Align.MIDDLE });
+        this._passwordEntry = new St.Entry({
+            style_class: 'polkit-dialog-password-entry',
+            text: "",
+            can_focus: true,
+            visible: false,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
         CinnamonEntry.addContextMenu(this._passwordEntry, { isPassword: true });
         this._passwordEntry.clutter_text.connect('activate', Lang.bind(this, this._onEntryActivate));
-        this._passwordBox.add(this._passwordEntry,
-                              { expand: true,
-                                y_align: St.Align.START });
+        // this._passwordBox.add(this._passwordEntry,
+        //                       { expand: true,
+        //                         y_align: St.Align.START });
+        passwordBox.add(this._passwordEntry);
         this.setInitialKeyFocus(this._passwordEntry);
-        this._passwordBox.hide();
+        // this._passwordBox.hide();
 
-        this._errorMessageLabel = new St.Label({ style_class: 'polkit-dialog-error-label' });
+        global.log("Creating error labels");
+
+        let warningBox = new St.BoxLayout({ vertical: true })
+
+        this._errorMessageLabel = new St.Label({
+            style_class: 'polkit-dialog-error-label',
+            visible: false,
+        });
         this._errorMessageLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._errorMessageLabel.clutter_text.line_wrap = true;
-        mainContentBox.add(this._errorMessageLabel);
-        this._errorMessageLabel.hide();
+        // mainContentBox.add(this._errorMessageLabel);
+        // this._errorMessageLabel.hide();
+        warningBox.add(this._errorMessageLabel);
 
-        this._infoMessageLabel = new St.Label({ style_class: 'polkit-dialog-info-label' });
+        this._infoMessageLabel = new St.Label({
+            style_class: 'polkit-dialog-info-label',
+            visible: false,
+        });
         this._infoMessageLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._infoMessageLabel.clutter_text.line_wrap = true;
-        mainContentBox.add(this._infoMessageLabel);
-        this._infoMessageLabel.hide();
+        // mainContentBox.add(this._infoMessageLabel);
+        // this._infoMessageLabel.hide();
+        warningBox.add(this._infoMessageLabel);
 
         /* text is intentionally non-blank otherwise the height is not the same as for
          * infoMessage and errorMessageLabel - but it is still invisible because
          * cinnamon.css sets the color to be transparent
          */
-        this._nullMessageLabel = new St.Label({ style_class: 'polkit-dialog-null-label',
-                                                text: 'abc'});
+        this._nullMessageLabel = new St.Label({ style_class: 'polkit-dialog-null-label' });
         this._nullMessageLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._nullMessageLabel.clutter_text.line_wrap = true;
-        mainContentBox.add(this._nullMessageLabel);
-        this._nullMessageLabel.show();
+        // mainContentBox.add(this._nullMessageLabel);
+        // this._nullMessageLabel.show();
+        warningBox.add(this._nullMessageLabel);
+
+        global.log("Adding boxes");
+
+        passwordBox.add(warningBox);
+        mainContentBox.add(passwordBox);
+
+        global.log("Setting buttons");
 
         this.setButtons([{ label: _("Cancel"),
                            action: Lang.bind(this, this.cancel),
@@ -176,15 +212,18 @@ AuthenticationDialog.prototype = {
         this._identityToAuth = Polkit.UnixUser.new_for_name(userName);
         this._cookie = cookie;
 
+        global.log("ui built");
+    },
+
+    performAuthentication: function() {
+        this.destroySession();
         this._session = new PolkitAgent.Session({ identity: this._identityToAuth,
                                                   cookie: this._cookie });
         this._session.connect('completed', Lang.bind(this, this._onSessionCompleted));
         this._session.connect('request', Lang.bind(this, this._onSessionRequest));
         this._session.connect('show-error', Lang.bind(this, this._onSessionShowError));
         this._session.connect('show-info', Lang.bind(this, this._onSessionShowInfo));
-    },
 
-    startAuthentication: function() {
         this._session.initiate();
     },
 
@@ -206,14 +245,14 @@ AuthenticationDialog.prototype = {
             log('polkitAuthenticationAgent: Failed to show modal dialog.' +
                 ' Dismissing authentication request for action-id ' + this.actionId +
                 ' cookie ' + this._cookie);
-            this._emitDone(false, true);
+            this._emitDone(true);
         }
     },
 
-    _emitDone: function(keepVisible, dismissed) {
+    _emitDone: function(dismissed) {
         if (!this._doneEmitted) {
             this._doneEmitted = true;
-            this.emit('done', keepVisible, dismissed);
+            this.emit('done', dismissed);
         }
     },
 
@@ -232,12 +271,15 @@ AuthenticationDialog.prototype = {
     },
 
     _onSessionCompleted: function(session, gainedAuthorization) {
-        if (this._completed)
+        if (this._completed || this._doneEmitted)
             return;
 
         this._completed = true;
 
-        if (!gainedAuthorization) {
+        /* All done */
+        if (gainedAuthorization) {
+            this._emitDone(false);
+        } else {
             /* Unless we are showing an existing error message from the PAM
              * module (the PAM module could be reporting the authentication
              * error providing authentication-method specific information),
@@ -252,24 +294,29 @@ AuthenticationDialog.prototype = {
                 this._errorMessageLabel.show();
                 this._infoMessageLabel.hide();
                 this._nullMessageLabel.hide();
+
+                Util.wiggle(this._passwordEntry);
             }
+
+            /* Try and authenticate again */
+            this.performAuthentication();
         }
-        this._emitDone(!gainedAuthorization, false);
     },
 
     _onSessionRequest: function(session, request, echo_on) {
+        global.log("session request");
         // Cheap localization trick
-        if (request == 'Password:')
-            this._passwordLabel.set_text(_("Password:"));
-        else
-            this._passwordLabel.set_text(request);
+        // if (request == 'Password:')
+        //     this._passwordEntry.hint_text = _("Password:");
+        // else
+        //     this._passwordEntry.hint_text = request.replace(/: *$/, '…');
 
         if (echo_on)
             this._passwordEntry.clutter_text.set_password_char('');
         else
             this._passwordEntry.clutter_text.set_password_char('\u25cf'); // ● U+25CF BLACK CIRCLE
 
-        this._passwordBox.show();
+        this._passwordEntry.show();
         this._passwordEntry.set_text('');
         this._passwordEntry.grab_key_focus();
         this._ensureOpen();
@@ -297,6 +344,7 @@ AuthenticationDialog.prototype = {
         if (this._session) {
             if (!this._completed)
                 this._session.cancel();
+            this._completed = false;
             this._session = null;
         }
     },
@@ -313,7 +361,7 @@ AuthenticationDialog.prototype = {
     cancel: function() {
         this._wasDismissed = true;
         this.close(global.get_current_time());
-        this._emitDone(false, true);
+        this._emitDone(true);
     },
 
 };
@@ -331,7 +379,6 @@ AuthenticationAgent.prototype = {
         // TODO - maybe register probably should wait until later, especially at first login?
         this._native.register();
         this._currentDialog = null;
-        this._isCompleting = false;
     },
 
     _onInitiate: function(nativeAgent, actionId, message, iconName, cookie, userNames) {
@@ -348,44 +395,24 @@ AuthenticationAgent.prototype = {
         // discussion.
 
         this._currentDialog.connect('done', Lang.bind(this, this._onDialogDone));
-        this._currentDialog.startAuthentication();
+        this._currentDialog.performAuthentication();
     },
 
     _onCancel: function(nativeAgent) {
-        this._completeRequest(false, false);
+        this._completeRequest(false);
     },
 
-    _onDialogDone: function(dialog, keepVisible, dismissed) {
-        this._completeRequest(keepVisible, dismissed);
+    _onDialogDone: function(dialog, dismissed) {
+        this._completeRequest(dismissed);
     },
 
-    _reallyCompleteRequest: function(dismissed) {
+     _completeRequest: function(dismissed) {
         this._currentDialog.close();
         this._currentDialog.destroySession();
         this._currentDialog = null;
-        this._isCompleting = false;
 
-        this._native.complete(dismissed)
+        this._native.complete(dismissed);
     },
-
-    _completeRequest: function(keepVisible, wasDismissed) {
-        if (this._isCompleting)
-            return;
-
-        this._isCompleting = true;
-
-        if (keepVisible) {
-            // Give the user 2 seconds to read 'Authentication Failure' before
-            // dismissing the dialog
-            Mainloop.timeout_add(2000,
-                                 Lang.bind(this,
-                                           function() {
-                                               this._reallyCompleteRequest(wasDismissed);
-                                           }));
-        } else {
-            this._reallyCompleteRequest(wasDismissed);
-        }
-    }
 }
 
 function init() {
