@@ -20,7 +20,6 @@ const Main = imports.ui.main;
 
 const Gettext = imports.gettext;
 
-const FADE_IN_BUTTONS_TIME = 330;
 const FADE_OUT_DIALOG_TIME = 1000;
 
 var OPEN_AND_CLOSE_TIME = 100;
@@ -179,8 +178,6 @@ ModalDialog.prototype = {
      * ```
      */
     setButtons: function(buttons) {
-        let hadChildren = this._buttonLayout.get_n_children() > 0;
-
         this._buttonLayout.destroy_all_children();
         this._actionKeys = {};
 
@@ -225,22 +222,7 @@ ModalDialog.prototype = {
             if (key)
                 this._actionKeys[key] = action;
         }
-
-        // Fade in buttons if there weren't any before
-        if (!hadChildren && buttons.length > 0) {
-            this._buttonLayout.opacity = 0;
-            this._buttonLayout.ease({
-                opacity: 255,
-                duration: FADE_IN_BUTTONS_TIME,
-                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
-                onComplete: () => {
-                    this.emit('buttons-set');
-                }
-            });
-        } else {
-            this.emit('buttons-set');
-        }
-
+        this.emit('buttons-set');
     },
 
     _onKeyPressEvent: function(object, keyPressEvent) {
