@@ -187,25 +187,6 @@ ModalDialog.prototype = {
 
         for (let i = 0; i < buttons.length; i ++) {
             let buttonInfo = buttons[i];
-            // let label = buttonInfo['label'];
-            // let action = buttonInfo['action'];
-            // let key = buttonInfo['key'];
-            // let isDefault = buttonInfo['default'];
-
-            // if (isDefault && !key)
-            //     key = Clutter.KEY_Return;
-
-            // buttonInfo.button = new St.Button({
-            //     style_class: 'modal-dialog-linked-button',
-            //     reactive: true,
-            //     can_focus: true,
-            //     x_expand: true,
-            //     y_expand: true,
-            //     label: label,
-            // });
-
-            // if (isDefault)
-            //     buttonInfo.button.add_style_pseudo_class('default');
 
             let x_alignment;
             if (buttons.length == 1)
@@ -217,18 +198,8 @@ ModalDialog.prototype = {
             else
                 x_alignment = St.Align.MIDDLE;
 
-            // if (!this._initialKeyFocusDestroyId)
-            //     this._initialKeyFocus = buttonInfo.button;
-            // this._buttonLayout.add_actor(buttonInfo.button);
-
             this.addButton(buttonInfo);
-
-            // buttonInfo.button.connect('clicked', action);
-
-            // if (key)
-            //     this._actionKeys[key] = action;
         }
-        // this.emit('buttons-set');
     },
 
     addButton: function(buttonInfo) {
@@ -236,12 +207,6 @@ ModalDialog.prototype = {
         let action = buttonInfo['action'];
         let key = buttonInfo['key'];
         let isDefault = buttonInfo['default'];
-
-        // if (isDefault && !key) {
-        //     this._actionKeys[Clutter.KEY_KP_Enter] = action;
-        //     this._actionKeys[Clutter.KEY_ISO_Enter] = action;
-        //     key = Clutter.KEY_Return;
-        // }
 
         let keys;
 
@@ -254,6 +219,7 @@ ModalDialog.prototype = {
 
         let button = new St.Button({
             style_class: 'modal-dialog-linked-button',
+            button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
             reactive: true,
             can_focus: true,
             x_expand: true,
