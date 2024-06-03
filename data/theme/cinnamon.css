@@ -87,7 +87,7 @@ StScrollBar StButton#vhandle:hover {
  * Shared button properties
  * ===================================================================*/
 .notification-button, .notification-icon-button,
-.modal-dialog-button,
+.modal-dialog-linked-button,
 .sound-player-overlay StButton {
     color: white;
     border: 1px solid #8b8b8b;
@@ -96,19 +96,19 @@ StScrollBar StButton#vhandle:hover {
     background-gradient-end: rgba(255, 255, 255, 0);
 }
 .notification-button:hover,
-.notification-icon-button:hover, .modal-dialog-button:hover,
+.notification-icon-button:hover, .modal-dialog-linked-button:hover,
 .sound-player-overlay StButton:hover {
     background-gradient-start: rgba(255, 255, 255, 0.3);
     background-gradient-end: rgba(255, 255, 255, 0.1);
 }
 .notification-button:focus,
 .notification-icon-button:focus,
-.modal-dialog-button:focus,
+.modal-dialog-linked-button:focus,
 .sound-player-overlay StButton:focus {
     border: 2px solid #8b8b8b;
 }
 .notification-button:active, .notification-icon-button:active,
-.modal-dialog-button:active, .modal-dialog-button:pressed,
+.modal-dialog-linked-button:active, .modal-dialog-linked-button:pressed,
 .sound-player-overlay StButton:active {
     background-gradient-start: rgba(255, 255, 255, 0);
     background-gradient-end: rgba(255, 255, 255, 0.2);
@@ -1009,34 +1009,49 @@ StScrollBar StButton#vhandle:hover {
     background-color: rgba(85, 85, 85, 0.9);
     border: 2px solid #868686;
     color: #babdb6;
-    padding-right: 42px;
-    padding-left: 42px;
-    padding-bottom: 30px;
-    padding-top: 30px;
 }
-.modal-dialog-button-box {
-    spacing: 21px;
-    padding-top: 21px;
+.modal-dialog-content-box {
+    margin: 24px 42px;
+    spacing: 18px;
 }
-.modal-dialog-button {
-    border-radius: 18px;
-    color: white;
-    margin-left: 10px;
-    margin-right: 10px;
-    padding: 4px 32px 5px;
+.modal-dialog-linked-button {
+    padding: 12px;
+    font-weight: bold;
+    border: 1px solid #868686;
+    border-right-width: 0;
+    border-left-width: 0;
+    border-bottom-width: 0;
 }
-.modal-dialog-button:disabled {
-    color: rgb(60, 60, 60);
+.modal-dialog-linked-button:ltr {
+    margin-right: 1px;
 }
-.modal-dialog-button:focus {
-    padding: 3px 31px 4px;
+.modal-dialog-linked-button:rtl {
+    margin-left: 1px;
 }
-
+.modal-dialog-linked-button:first-child:ltr {
+    border-radius: 0 0 0 23px;
+/*    border-right-width: 1px;*/
+}
+.modal-dialog-linked-button:last-child:ltr {
+    border-radius: 0 0 23px;
+    margin-right: 0;
+}
+.modal-dialog-linked-button:first-child:rtl {
+    border-radius: 0 0 23px;
+}
+.modal-dialog-linked-button:last-child:rtl {
+    border-radius: 0 0 0 23px;
+    margin-left: 0;
+}
+.modal-dialog-linked-button:first-child:last-child {
+    border-radius: 0 0 23px 23px;
+    margin-left: 0;
+    margin-right: 0;
+}
 .confirm-dialog-title {
     text-align: center;
     font-weight: bold;
     font-size: 1.5em;
-    padding-bottom: 12px;
 }
 
 /* Info OSD popup */
@@ -1069,6 +1084,11 @@ StScrollBar StButton#vhandle:hover {
 /* ===================================================================
  * Run dialog
  * ===================================================================*/
+.run-dialog .modal-dialog-content-box {
+    margin-top: 12px;
+    margin-bottom: 12px;
+    spacing: 12px;
+}
 .run-dialog-label {
     color: white;
     padding-bottom: 15px;
@@ -1078,7 +1098,7 @@ StScrollBar StButton#vhandle:hover {
 }
 .run-dialog-description {
     color: white;
-    padding-top: 15px;
+    padding-top: 12px;
     text-align: center;
 }
 .run-dialog-description.error {
@@ -1093,13 +1113,6 @@ StScrollBar StButton#vhandle:hover {
     color: white;
     selection-background-color: white;
     selected-color: black;
-}
-.run-dialog {
-    border-radius: 16px;
-    padding-right: 21px;
-    padding-left: 21px;
-    padding-bottom: 0;
-    padding-top: 15px;
 }
 .lightbox {
     background-color: rgba(0, 0, 0, 0.4);

@@ -86,9 +86,14 @@ ModalDialog.prototype = {
         this._backgroundBin = new St.Bin();
         this._group.add_actor(this._backgroundBin);
 
-        this._dialogLayout = new St.BoxLayout({ style_class: 'modal-dialog',
-                                                vertical:    true,
-                                                important: true });
+        this._dialogLayout = new St.BoxLayout({
+            style_class: 'modal-dialog',
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.CENTER,
+            vertical: true,
+            important: true,
+        });
+
         if (params.styleClass != null) {
             this._dialogLayout.add_style_class_name(params.styleClass);
         }
@@ -110,15 +115,17 @@ ModalDialog.prototype = {
         }
 
 
-        this.contentLayout = new St.BoxLayout({ vertical: true });
+        this.contentLayout = new St.BoxLayout({
+            vertical: true,
+            style_class: 'modal-dialog-content-box',
+        });
         this._dialogLayout.add(this.contentLayout,
                                { x_fill:  true,
                                  y_fill:  true,
                                  x_align: St.Align.MIDDLE,
                                  y_align: St.Align.START });
 
-        this._buttonLayout = new St.BoxLayout({ style_class: 'modal-dialog-button-box',
-                                                vertical:    false });
+        this._buttonLayout = new St.Widget({ layout_manager: new Clutter.BoxLayout ({ homogeneous: true }) });
         this._dialogLayout.add(this._buttonLayout,
                                { expand:  true,
                                  x_align: St.Align.MIDDLE,
@@ -187,10 +194,14 @@ ModalDialog.prototype = {
             let key = buttonInfo['key'];
             let wantsfocus = buttonInfo['focused'] === true;
             let nofocus = buttonInfo['focused'] === false;
-            buttonInfo.button = new St.Button({ style_class: 'modal-dialog-button',
-                                                reactive:    true,
-                                                can_focus:   true,
-                                                label:       label });
+            buttonInfo.button = new St.Button({
+                style_class: 'modal-dialog-linked-button',
+                reactive: true,
+                can_focus: true,
+                x_expand: true,
+                y_expand: true,
+                label: label,
+            });
 
             let x_alignment;
             if (buttons.length == 1)
@@ -212,12 +223,7 @@ ModalDialog.prototype = {
             {
                 this._initialKeyFocus = buttonInfo.button;
             }
-            this._buttonLayout.add(buttonInfo.button,
-                                   { expand: true,
-                                     x_fill: false,
-                                     y_fill: false,
-                                     x_align: x_alignment,
-                                     y_align: St.Align.MIDDLE });
+            this._buttonLayout.add_actor(buttonInfo.button);
 
             buttonInfo.button.connect('clicked', action);
 
