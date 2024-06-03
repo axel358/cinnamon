@@ -79,7 +79,7 @@ ModalDialog.prototype = {
 
         this._group.connect('destroy', Lang.bind(this, this._onGroupDestroy));
 
-        this._actionKeys = {};
+        this._buttonKeys = {};
         this._group.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
 
         this._backgroundBin = new St.Bin();
@@ -147,7 +147,7 @@ ModalDialog.prototype = {
 
     clearButtons: function() {
         this.buttonLayout.destroy_all_children();
-        this._actionKeys = {};
+        this._buttonKeys = {};
     },
 
     /**
@@ -221,7 +221,7 @@ ModalDialog.prototype = {
             //     this._initialKeyFocus = buttonInfo.button;
             // this._buttonLayout.add_actor(buttonInfo.button);
 
-            let button = this.addButton(buttonInfo);
+            this.addButton(buttonInfo);
 
             // buttonInfo.button.connect('clicked', action);
 
@@ -237,11 +237,20 @@ ModalDialog.prototype = {
         let key = buttonInfo['key'];
         let isDefault = buttonInfo['default'];
 
-        if (isDefault && !key) {
-            this._actionKeys[Clutter.KEY_KP_Enter] = action;
-            this._actionKeys[Clutter.KEY_ISO_Enter] = action;
-            key = Clutter.KEY_Return;
-        }
+        // if (isDefault && !key) {
+        //     this._actionKeys[Clutter.KEY_KP_Enter] = action;
+        //     this._actionKeys[Clutter.KEY_ISO_Enter] = action;
+        //     key = Clutter.KEY_Return;
+        // }
+
+        let keys;
+
+        if (key)
+            keys = [key];
+        else if (isDefault)
+            keys = [Clutter.KEY_Return, Clutter.KEY_KP_Enter, Clutter.KEY_ISO_Enter];
+        else
+            keys = [];
 
         let button = new St.Button({
             style_class: 'modal-dialog-linked-button',
@@ -260,8 +269,8 @@ ModalDialog.prototype = {
         if (!this._initialKeyFocusDestroyId)
             this._initialKeyFocus = button;
 
-        if (key)
-            this._actionKeys[key] = action;
+        for (let i in keys)
+            this._buttonKeys[keys[i]] = buttonInfo;
 
         this.buttonLayout.add_actor(button);
 
@@ -273,17 +282,25 @@ ModalDialog.prototype = {
         let ctrlAltMask = Clutter.ModifierType.CONTROL_MASK | Clutter.ModifierType.MOD1_MASK;
         let symbol = keyPressEvent.get_key_symbol();
 
-        let action = this._actionKeys[symbol];
+        let buttonInfo = this._buttonKeys[symbol];
 
-        if (action) {
+        if (!buttonInfo)
+            return false;
+
+        let button = buttonInfo['button'];
+        let action = buttonInfo['action'];
+
+        if (action && button.reactive) {
             action();
-            return;
+            return true;
         }
 
         if (symbol === Clutter.KEY_Escape && !(modifiers & ctrlAltMask)) {
             this.close();
-            return;
+            return true;
         }
+
+        return false;
     },
 
     _onGroupDestroy: function() {
