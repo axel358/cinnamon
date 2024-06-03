@@ -133,6 +133,7 @@ ModalDialog.prototype = {
 
         global.focus_manager.add_group(this._dialogLayout);
         this._initialKeyFocus = this._dialogLayout;
+        this._initialKeyFocusDestroyId = 0;
         this._savedKeyFocus = null;
     },
 
@@ -182,18 +183,13 @@ ModalDialog.prototype = {
 
         this._buttonLayout.destroy_all_children();
         this._actionKeys = {};
-        let focusSetExplicitly = false;
 
         for (let i = 0; i < buttons.length; i ++) {
             let buttonInfo = buttons[i];
-            if (!buttonInfo.focused) {
-                buttonInfo.focused = false;
-            }
             let label = buttonInfo['label'];
             let action = buttonInfo['action'];
             let key = buttonInfo['key'];
-            let wantsfocus = buttonInfo['focused'] === true;
-            let nofocus = buttonInfo['focused'] === false;
+
             buttonInfo.button = new St.Button({
                 style_class: 'modal-dialog-linked-button',
                 reactive: true,
@@ -213,16 +209,8 @@ ModalDialog.prototype = {
             else
                 x_alignment = St.Align.MIDDLE;
 
-            if (wantsfocus) {
+            if (!this._initialKeyFocusDestroyId)
                 this._initialKeyFocus = buttonInfo.button;
-                focusSetExplicitly = true;
-            }
-
-            if (!focusSetExplicitly && !nofocus && (this._initialKeyFocus == this._dialogLayout ||
-                this._buttonLayout.contains(this._initialKeyFocus)))
-            {
-                this._initialKeyFocus = buttonInfo.button;
-            }
             this._buttonLayout.add_actor(buttonInfo.button);
 
             buttonInfo.button.connect('clicked', action);
@@ -295,7 +283,15 @@ ModalDialog.prototype = {
     },
 
     setInitialKeyFocus: function(actor) {
+        if (this._initialKeyFocusDestroyId)
+            this._initialKeyFocus.disconnect(this._initialKeyFocusDestroyId);
+
         this._initialKeyFocus = actor;
+
+        this._initialKeyFocusDestroyId = actor.connect('destroy', Lang.bind(this, function() {
+            this._initialKeyFocus = this._dialogLayout;
+            this._initialKeyFocusDestroyId = 0;
+        }));
     },
 
     /**
