@@ -82,7 +82,13 @@ ModalDialog.prototype = {
         this._buttonKeys = {};
         this._group.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
 
-        this._backgroundBin = new St.Bin();
+        // this._backgroundBin = new St.Bin();
+        this.backgroundStack = new Cinnamon.Stack();
+        this._backgroundBin = new St.Bin({
+            child: this.backgroundStack,
+            x_fill: true,
+            y_fill: true
+        });
         this._group.add_actor(this._backgroundBin);
 
         this._dialogLayout = new St.BoxLayout({
@@ -103,15 +109,18 @@ ModalDialog.prototype = {
                                                      radialEffect: true });
             this._lightbox.highlight(this._backgroundBin);
 
-            let stack = new Cinnamon.Stack();
-            this._backgroundBin.child = stack;
+            // let stack = new Cinnamon.Stack();
+            // this._backgroundBin.child = stack;
 
             this._eventBlocker = new Clutter.Actor({ reactive: true });
-            stack.add_actor(this._eventBlocker);
-            stack.add_actor(this._dialogLayout);
-        } else {
-            this._backgroundBin.child = this._dialogLayout;
+            // stack.add_actor(this._eventBlocker);
+            // stack.add_actor(this._dialogLayout);
+        // } else {
+        //     this._backgroundBin.child = this._dialogLayout;
+            this.backgroundStack.add_actor(this._eventBlocker);
         }
+
+        this.backgroundStack.add_actor(this._dialogLayout);
 
 
         this.contentLayout = new St.BoxLayout({
