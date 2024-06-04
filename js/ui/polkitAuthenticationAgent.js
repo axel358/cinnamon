@@ -28,6 +28,7 @@ const Clutter = imports.gi.Clutter;
 const St = imports.gi.St;
 const Pango = imports.gi.Pango;
 const Gio = imports.gi.Gio;
+const GObject = imports.gi.GObject;
 const Mainloop = imports.mainloop;
 const Polkit = imports.gi.Polkit;
 const PolkitAgent = imports.gi.PolkitAgent;
@@ -38,15 +39,20 @@ const UserWidget = imports.ui.userWidget;
 
 const DIALOG_ICON_SIZE = 64;
 
-function AuthenticationDialog(actionId, message, cookie, userNames) {
-    this._init(actionId, message, cookie, userNames);
-}
+// function AuthenticationDialog(actionId, message, cookie, userNames) {
+//     this._init(actionId, message, cookie, userNames);
+// }
 
-AuthenticationDialog.prototype = {
-    __proto__: ModalDialog.ModalDialog.prototype,
+// AuthenticationDialog.prototype = {
+//     __proto__: ModalDialog.ModalDialog.prototype,
 
-    _init: function(actionId, message, cookie, userNames) {
-        ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
+//     _init: function(actionId, message, cookie, userNames) {
+//         ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
+var AuthenticationDialog = GObject.registerClass({
+    Signals: { 'done': { param_types: [GObject.TYPE_BOOLEAN] } }
+}, class AuthenticationDialog extends ModalDialog.ModalDialog {
+    _init(actionId, message, cookie, userNames) {
+        super._init({ styleClass: 'polkit-dialog' });
 
         this.actionId = actionId;
         this.message = message;
@@ -183,13 +189,13 @@ AuthenticationDialog.prototype = {
         this._session.connect('request', Lang.bind(this, this._onSessionRequest));
         this._session.connect('show-error', Lang.bind(this, this._onSessionShowError));
         this._session.connect('show-info', Lang.bind(this, this._onSessionShowInfo));
-    },
+    }
 
-    startAuthentication: function() {
+    startAuthentication() {
         this._session.initiate();
-    },
+    }
 
-    _ensureOpen: function() {
+    _ensureOpen() {
         // NOTE: ModalDialog.open() is safe to call if the dialog is
         // already open - it just returns true without side-effects
         if (!this.open(global.get_current_time())) {
@@ -209,16 +215,16 @@ AuthenticationDialog.prototype = {
                 ' cookie ' + this._cookie);
             this._emitDone(false, true);
         }
-    },
+    }
 
-    _emitDone: function(keepVisible, dismissed) {
+    _emitDone(keepVisible, dismissed) {
         if (!this._doneEmitted) {
             this._doneEmitted = true;
             this.emit('done', keepVisible, dismissed);
         }
-    },
+    }
 
-    _onEntryActivate: function() {
+    _onEntryActivate() {
         let response = this._passwordEntry.get_text();
         this._session.response(response);
         // When the user responds, dismiss already shown info and
@@ -226,13 +232,13 @@ AuthenticationDialog.prototype = {
         this._errorMessageLabel.hide();
         this._infoMessageLabel.hide();
         this._nullMessageLabel.show();
-    },
+    }
 
-    _onAuthenticateButtonPressed: function() {
+    _onAuthenticateButtonPressed() {
         this._onEntryActivate();
-    },
+    }
 
-    _onSessionCompleted: function(session, gainedAuthorization) {
+    _onSessionCompleted(session, gainedAuthorization) {
         if (this._completed)
             return;
 
@@ -256,9 +262,9 @@ AuthenticationDialog.prototype = {
             }
         }
         this._emitDone(!gainedAuthorization, false);
-    },
+    }
 
-    _onSessionRequest: function(session, request, echo_on) {
+    _onSessionRequest(session, request, echo_on) {
         // Cheap localization trick
         if (request == 'Password:')
             this._passwordLabel.set_text(_("Password:"));
@@ -274,51 +280,51 @@ AuthenticationDialog.prototype = {
         this._passwordEntry.set_text('');
         this._passwordEntry.grab_key_focus();
         this._ensureOpen();
-    },
+    }
 
-    _onSessionShowError: function(session, text) {
+    _onSessionShowError(session, text) {
         this._passwordEntry.set_text('');
         this._errorMessageLabel.set_text(text);
         this._errorMessageLabel.show();
         this._infoMessageLabel.hide();
         this._nullMessageLabel.hide();
         this._ensureOpen();
-    },
+    }
 
-    _onSessionShowInfo: function(session, text) {
+    _onSessionShowInfo(session, text) {
         this._passwordEntry.set_text('');
         this._infoMessageLabel.set_text(text);
         this._infoMessageLabel.show();
         this._errorMessageLabel.hide();
         this._nullMessageLabel.hide();
         this._ensureOpen();
-    },
+    }
 
-    destroySession: function() {
+    destroySession() {
         if (this._session) {
             if (!this._completed)
                 this._session.cancel();
             this._session = null;
         }
-    },
+    }
 
-    _onUserChanged: function() {
+    _onUserChanged() {
         if (this._user.is_loaded) {
             if (this._userIcon) {
                 this._userIcon.update();
                 this._userIcon.show();
             }
         }
-    },
+    }
 
-    cancel: function() {
+    cancel() {
         this._wasDismissed = true;
         this.close(global.get_current_time());
         this._emitDone(false, true);
-    },
+    }
 
-};
-Signals.addSignalMethods(AuthenticationDialog.prototype);
+});
+// Signals.addSignalMethods(AuthenticationDialog.prototype);
 
 function AuthenticationAgent() {
     this._init();
