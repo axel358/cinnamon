@@ -15,6 +15,7 @@ const Gdk = imports.gi.Gdk;
 const Params = imports.misc.params;
 const Util = imports.misc.util;
 
+const Dialog = imports.ui.dialog;
 const Lightbox = imports.ui.lightbox;
 const Main = imports.ui.main;
 
@@ -79,8 +80,8 @@ ModalDialog.prototype = {
 
         this._group.connect('destroy', Lang.bind(this, this._onGroupDestroy));
 
-        this._buttonKeys = {};
-        this._group.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
+        // this._buttonKeys = {};
+        // this._group.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
 
         this.backgroundStack = new St.Widget({ layout_manager: new Clutter.BinLayout() });
         this._backgroundBin = new St.Bin({
@@ -90,21 +91,25 @@ ModalDialog.prototype = {
         });
         this._group.add_actor(this._backgroundBin);
 
-        this._dialogLayout = new St.BoxLayout({
-            style_class: 'modal-dialog',
-            x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.CENTER,
-            vertical: true,
-            important: true,
-        });
+        // this._dialogLayout = new St.BoxLayout({
+        //     style_class: 'modal-dialog',
+        //     x_align: Clutter.ActorAlign.CENTER,
+        //     y_align: Clutter.ActorAlign.CENTER,
+        //     vertical: true,
+        //     important: true,
+        // });
         // modal dialogs are fixed width and grow vertically; set the request
         // mode accordingly so wrapped labels are handled correctly during
         // size requests.
-        this._dialogLayout.request_mode = Clutter.RequestMode.HEIGHT_FOR_WIDTH;
+        // this._dialogLayout.request_mode = Clutter.RequestMode.HEIGHT_FOR_WIDTH;
 
-        if (params.styleClass != null) {
-            this._dialogLayout.add_style_class_name(params.styleClass);
-        }
+        // if (params.styleClass != null) {
+        //     this._dialogLayout.add_style_class_name(params.styleClass);
+        // }
+
+        this.dialogLayout = new Dialog.Dialog(this.backgroundStack, params.styleClass);
+        this.contentLayout = this.dialogLayout.contentLayout;
+        this.buttonLayout = this.dialogLayout.buttonLayout;
 
         if (!this._cinnamonReactive) {
             this._lightbox = new Lightbox.Lightbox(this._group,
@@ -116,29 +121,29 @@ ModalDialog.prototype = {
             this.backgroundStack.add_actor(this._eventBlocker);
         }
 
-        this.backgroundStack.add_actor(this._dialogLayout);
+        // this.backgroundStack.add_actor(this._dialogLayout);
 
 
-        this.contentLayout = new St.BoxLayout({
-            vertical: true,
-            style_class: 'modal-dialog-content-box',
-        });
-        this._dialogLayout.add(this.contentLayout, {
-            expand: true,
-            x_fill:  true,
-            y_fill:  true,
-            x_align: St.Align.MIDDLE,
-            y_align: St.Align.START
-        });
+        // this.contentLayout = new St.BoxLayout({
+        //     vertical: true,
+        //     style_class: 'modal-dialog-content-box',
+        // });
+        // this._dialogLayout.add(this.contentLayout, {
+        //     expand: true,
+        //     x_fill:  true,
+        //     y_fill:  true,
+        //     x_align: St.Align.MIDDLE,
+        //     y_align: St.Align.START
+        // });
 
-        this.buttonLayout = new St.Widget({ layout_manager: new Clutter.BoxLayout ({ homogeneous: true }) });
-        this._dialogLayout.add(this.buttonLayout, {
-            x_align: St.Align.MIDDLE,
-            y_align: St.Align.END
-        });
+        // this.buttonLayout = new St.Widget({ layout_manager: new Clutter.BoxLayout ({ homogeneous: true }) });
+        // this._dialogLayout.add(this.buttonLayout, {
+        //     x_align: St.Align.MIDDLE,
+        //     y_align: St.Align.END
+        // });
 
-        global.focus_manager.add_group(this._dialogLayout);
-        this._initialKeyFocus = this._dialogLayout;
+        global.focus_manager.add_group(this.dialogLayout);
+        this._initialKeyFocus = null;
         this._initialKeyFocusDestroyId = 0;
         this._savedKeyFocus = null;
     },
@@ -153,8 +158,7 @@ ModalDialog.prototype = {
     },
 
     clearButtons: function() {
-        this.buttonLayout.destroy_all_children();
-        this._buttonKeys = {};
+        this.dialogLayout.clearButtons();
     },
 
     /**
@@ -209,71 +213,74 @@ ModalDialog.prototype = {
         }
     },
 
-    addButton: function(buttonInfo) {
-        let label = buttonInfo['label'];
-        let action = buttonInfo['action'];
-        let key = buttonInfo['key'];
-        let isDefault = buttonInfo['default'];
+    // addButton: function(buttonInfo) {
+    //     let label = buttonInfo['label'];
+    //     let action = buttonInfo['action'];
+    //     let key = buttonInfo['key'];
+    //     let isDefault = buttonInfo['default'];
 
-        let keys;
+    //     let keys;
 
-        if (key)
-            keys = [key];
-        else if (isDefault)
-            keys = [Clutter.KEY_Return, Clutter.KEY_KP_Enter, Clutter.KEY_ISO_Enter];
-        else
-            keys = [];
+    //     if (key)
+    //         keys = [key];
+    //     else if (isDefault)
+    //         keys = [Clutter.KEY_Return, Clutter.KEY_KP_Enter, Clutter.KEY_ISO_Enter];
+    //     else
+    //         keys = [];
 
-        let button = new St.Button({
-            style_class: 'modal-dialog-linked-button',
-            button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
-            reactive: true,
-            can_focus: true,
-            x_expand: true,
-            y_expand: true,
-            label: label,
-        });
+    //     let button = new St.Button({
+    //         style_class: 'modal-dialog-linked-button',
+    //         button_mask: St.ButtonMask.ONE | St.ButtonMask.THREE,
+    //         reactive: true,
+    //         can_focus: true,
+    //         x_expand: true,
+    //         y_expand: true,
+    //         label: label,
+    //     });
 
-        button.connect('clicked', action);
+    //     button.connect('clicked', action);
 
-        if (isDefault)
-            button.add_style_pseudo_class('default');
+    //     if (isDefault)
+    //         button.add_style_pseudo_class('default');
 
-        if (!this._initialKeyFocusDestroyId)
-            this._initialKeyFocus = button;
+    //     if (!this._initialKeyFocusDestroyId)
+    //         this._initialKeyFocus = button;
 
-        for (let i in keys)
-            this._buttonKeys[keys[i]] = buttonInfo;
+    //     for (let i in keys)
+    //         this._buttonKeys[keys[i]] = buttonInfo;
 
-        this.buttonLayout.add_actor(button);
+    //     this.buttonLayout.add_actor(button);
 
-        return button;
-    },
+    //     return button;
+    // },
 
-    _onKeyPressEvent: function(object, keyPressEvent) {
-        let modifiers = Cinnamon.get_event_state(keyPressEvent);
-        let ctrlAltMask = Clutter.ModifierType.CONTROL_MASK | Clutter.ModifierType.MOD1_MASK;
-        let symbol = keyPressEvent.get_key_symbol();
+    // _onKeyPressEvent: function(object, keyPressEvent) {
+    //     let modifiers = Cinnamon.get_event_state(keyPressEvent);
+    //     let ctrlAltMask = Clutter.ModifierType.CONTROL_MASK | Clutter.ModifierType.MOD1_MASK;
+    //     let symbol = keyPressEvent.get_key_symbol();
 
-        let buttonInfo = this._buttonKeys[symbol];
+    //     let buttonInfo = this._buttonKeys[symbol];
 
-        if (!buttonInfo)
-            return Clutter.EVENT_PROPAGATE;
+    //     if (!buttonInfo)
+    //         return Clutter.EVENT_PROPAGATE;
 
-        let button = buttonInfo['button'];
-        let action = buttonInfo['action'];
+    //     let button = buttonInfo['button'];
+    //     let action = buttonInfo['action'];
 
-        if (action && button.reactive) {
-            action();
-            return Clutter.EVENT_STOP;
-        }
+    //     if (action && button.reactive) {
+    //         action();
+    //         return Clutter.EVENT_STOP;
+    //     }
 
-        if (symbol === Clutter.KEY_Escape && !(modifiers & ctrlAltMask)) {
-            this.close();
-            return Clutter.EVENT_STOP;
-        }
+    //     if (symbol === Clutter.KEY_Escape && !(modifiers & ctrlAltMask)) {
+    //         this.close();
+    //         return Clutter.EVENT_STOP;
+    //     }
 
-        return Clutter.EVENT_PROPAGATE;
+    //     return Clutter.EVENT_PROPAGATE;
+    // },
+    addButton: function (buttonInfo) {
+        return this.dialogLayout.addButton(buttonInfo);
     },
 
     _onGroupDestroy: function() {
@@ -288,7 +295,7 @@ ModalDialog.prototype = {
 
         this.state = State.OPENING;
 
-        this._dialogLayout.opacity = 255;
+        this.dialogLayout.opacity = 255;
         if (this._lightbox)
             this._lightbox.show();
         this._group.opacity = 0;
@@ -311,7 +318,7 @@ ModalDialog.prototype = {
         this._initialKeyFocus = actor;
 
         this._initialKeyFocusDestroyId = actor.connect('destroy', Lang.bind(this, function() {
-            this._initialKeyFocus = this._dialogLayout;
+            this._initialKeyFocus = null;
             this._initialKeyFocusDestroyId = 0;
         }));
     },
@@ -409,8 +416,10 @@ ModalDialog.prototype = {
         if (this._savedKeyFocus) {
             this._savedKeyFocus.grab_key_focus();
             this._savedKeyFocus = null;
-        } else
-            this._initialKeyFocus.grab_key_focus();
+        } else {
+            let focus = this._initialKeyFocus || this.dialogLayout.initialKeyFocus;
+            focus.grab_key_focus();
+        }
 
         if (!this._cinnamonReactive)
             this._eventBlocker.lower_bottom();
@@ -443,7 +452,7 @@ ModalDialog.prototype = {
             return;
 
         this.popModal(timestamp);
-        this._dialogLayout.ease({
+        this.dialogLayout.ease({
             opacity: 0,
             duration: FADE_OUT_DIALOG_TIME,
             mode: Clutter.AnimationMode.EASE_OUT_QUAD,
