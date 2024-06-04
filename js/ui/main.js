@@ -102,7 +102,7 @@ const Overview = imports.ui.overview;
 const Expo = imports.ui.expo;
 const Panel = imports.ui.panel;
 const PlacesManager = imports.ui.placesManager;
-const PolkitAuthenticationAgent = imports.ui.polkitAuthenticationAgent;
+// const PolkitAuthenticationAgent = imports.ui.polkitAuthenticationAgent;
 const RunDialog = imports.ui.runDialog;
 const Layout = imports.ui.layout;
 const LookingGlass = imports.ui.lookingGlass;
@@ -430,7 +430,7 @@ function start() {
     _initUserSession();
     screenRecorder = new ScreenRecorder.ScreenRecorder();
 
-    if (Meta.is_wayland_compositor()) {
+    if (false) {
         PolkitAuthenticationAgent.init();
     }
 

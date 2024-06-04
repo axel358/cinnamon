@@ -3,6 +3,7 @@
 const Clutter = imports.gi.Clutter;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
+const GObject = imports.gi.GObject;
 const Pango = imports.gi.Pango;
 const Lang = imports.lang;
 const Mainloop = imports.mainloop;
@@ -146,14 +147,20 @@ function completeCommand(text) {
     return [common.substring(last.length, common.length), results.map(x => x.substring(last.length, x.length))];
 }
 
-function RunDialog() {
-    this._init();
-}
+// function RunDialog() {
+//     this._init();
+// }
 
-RunDialog.prototype = {
-__proto__: ModalDialog.ModalDialog.prototype,
-    _init : function() {
-        ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'run-dialog' });
+// RunDialog.prototype = {
+// __proto__: ModalDialog.ModalDialog.prototype,
+// var RunDialog = class extends ModalDialog.ModalDialog {
+//     constructor() {
+//         // ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'run-dialog' });
+//         super({ styleClass: 'run-dialog' });
+var RunDialog = GObject.registerClass(
+class RunDialog extends ModalDialog.ModalDialog {
+    _init() {
+        super._init({ styleClass: 'run-dialog'});
 
         this._lockdownSettings = new Gio.Settings({ schema_id: LOCKDOWN_SCHEMA });
         this._terminalSettings = new Gio.Settings({ schema_id: TERMINAL_SCHEMA });
@@ -200,9 +207,9 @@ __proto__: ModalDialog.ModalDialog.prototype,
                                                      deduplicate: true });
 
         this._updateCompletionTimer = 0;
-     },
+     }
 
-    _onKeyPress: function (o, e) {
+    _onKeyPress(o, e) {
         let symbol = e.get_key_symbol();
         if (symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter) {
             if (o.get_text().trim() == "") {
@@ -270,11 +277,11 @@ __proto__: ModalDialog.ModalDialog.prototype,
             return false;
         }
         return false;
-    },
+    }
 
     // There is different behaviour depending on whether this is called due to
     // pressing tab or other keys.
-    _updateCompletions: function(nav_type=NAVIGATE_TYPE_NONE, direction=DOWN) {
+    _updateCompletions(nav_type=NAVIGATE_TYPE_NONE, direction=DOWN) {
         this._updateCompletionTimer = 0;
 
         let text = this._expandHome(this._entryText.get_text());
@@ -339,18 +346,18 @@ __proto__: ModalDialog.ModalDialog.prototype,
             this._completionBox.hide();
             this._oldText = "";
         }
-    },
+    }
 
-    _expandHome: function(text) {
+    _expandHome(text) {
         if (text.charAt(0) == '~') {
             text = text.slice(1);
             return GLib.build_filenamev([GLib.get_home_dir(), text]);
         }
 
         return text;
-    },
+    }
 
-    _showCompletions: function(orig) {
+    _showCompletions(orig) {
         /* Show a list of possible completions, and allow users to scroll
          * through them. The scrolling mechanism is done in _updateCompletions,
          * which provides the current selected index in
@@ -390,9 +397,9 @@ __proto__: ModalDialog.ModalDialog.prototype,
 
         this._completionBox.clutter_text.set_markup(text);
         this._entryText.set_selection(-1, orig.length);
-    },
+    }
 
-    _run : function(input, inTerminal) {
+    _run(input, inTerminal) {
         input = input.trim();
         this._history.addItem(input);
         this._commandError = false;
@@ -450,16 +457,16 @@ __proto__: ModalDialog.ModalDialog.prototype,
                 this._showError(e.message);
             }
         }
-    },
+    }
 
-    _showError : function(message) {
+    _showError(message) {
         this._commandError = true;
 
         this._descriptionLabel.set_text(message.trim());
         this._descriptionLabel.add_style_class_name('error');
-    },
+    }
 
-    open: function() {
+    open() {
         this._history.lastItem();
         this._descriptionLabel.set_text(_("Press ESC to close"));
         this._descriptionLabel.remove_style_class_name('error');
@@ -470,7 +477,7 @@ __proto__: ModalDialog.ModalDialog.prototype,
         if (this._lockdownSettings.get_boolean(DISABLE_COMMAND_LINE_KEY))
             return;
 
-        ModalDialog.ModalDialog.prototype.open.call(this);
-    },
-};
-Signals.addSignalMethods(RunDialog.prototype);
+        super.open();
+    }
+});
+// Signals.addSignalMethods(RunDialog.prototype);
