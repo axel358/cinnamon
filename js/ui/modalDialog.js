@@ -258,22 +258,22 @@ ModalDialog.prototype = {
         let buttonInfo = this._buttonKeys[symbol];
 
         if (!buttonInfo)
-            return false;
+            return Clutter.EVENT_PROPAGATE;
 
         let button = buttonInfo['button'];
         let action = buttonInfo['action'];
 
         if (action && button.reactive) {
             action();
-            return true;
+            return Clutter.EVENT_STOP;
         }
 
         if (symbol === Clutter.KEY_Escape && !(modifiers & ctrlAltMask)) {
             this.close();
-            return true;
+            return Clutter.EVENT_STOP;
         }
 
-        return false;
+        return Clutter.EVENT_PROPAGATE;
     },
 
     _onGroupDestroy: function() {
