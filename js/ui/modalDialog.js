@@ -82,7 +82,6 @@ ModalDialog.prototype = {
         this._buttonKeys = {};
         this._group.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
 
-        // this._backgroundBin = new St.Bin();
         this.backgroundStack = new St.Widget({ layout_manager: new Clutter.BinLayout() });
         this._backgroundBin = new St.Bin({
             child: this.backgroundStack,
@@ -98,6 +97,10 @@ ModalDialog.prototype = {
             vertical: true,
             important: true,
         });
+        // modal dialogs are fixed width and grow vertically; set the request
+        // mode accordingly so wrapped labels are handled correctly during
+        // size requests.
+        this._dialogLayout.request_mode = Clutter.RequestMode.HEIGHT_FOR_WIDTH;
 
         if (params.styleClass != null) {
             this._dialogLayout.add_style_class_name(params.styleClass);
@@ -109,14 +112,7 @@ ModalDialog.prototype = {
                                                      radialEffect: true });
             this._lightbox.highlight(this._backgroundBin);
 
-            // let stack = new Cinnamon.Stack();
-            // this._backgroundBin.child = stack;
-
             this._eventBlocker = new Clutter.Actor({ reactive: true });
-            // stack.add_actor(this._eventBlocker);
-            // stack.add_actor(this._dialogLayout);
-        // } else {
-        //     this._backgroundBin.child = this._dialogLayout;
             this.backgroundStack.add_actor(this._eventBlocker);
         }
 
@@ -127,17 +123,19 @@ ModalDialog.prototype = {
             vertical: true,
             style_class: 'modal-dialog-content-box',
         });
-        this._dialogLayout.add(this.contentLayout,
-                               { x_fill:  true,
-                                 y_fill:  true,
-                                 x_align: St.Align.MIDDLE,
-                                 y_align: St.Align.START });
+        this._dialogLayout.add(this.contentLayout, {
+            expand: true,
+            x_fill:  true,
+            y_fill:  true,
+            x_align: St.Align.MIDDLE,
+            y_align: St.Align.START
+        });
 
         this.buttonLayout = new St.Widget({ layout_manager: new Clutter.BoxLayout ({ homogeneous: true }) });
-        this._dialogLayout.add(this.buttonLayout,
-                               { expand:  true,
-                                 x_align: St.Align.MIDDLE,
-                                 y_align: St.Align.END });
+        this._dialogLayout.add(this.buttonLayout, {
+            x_align: St.Align.MIDDLE,
+            y_align: St.Align.END
+        });
 
         global.focus_manager.add_group(this._dialogLayout);
         this._initialKeyFocus = this._dialogLayout;
