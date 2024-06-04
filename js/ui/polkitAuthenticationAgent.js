@@ -58,7 +58,7 @@ var AuthenticationDialog = GObject.registerClass({
         this.message = message;
         this.userNames = userNames;
         this._wasDismissed = false;
-        this._completed = false;
+        // this._completed = false;
 
         let mainContentBox = new St.BoxLayout({ style_class: 'polkit-dialog-main-layout',
                                                 vertical: true });
@@ -169,29 +169,37 @@ var AuthenticationDialog = GObject.registerClass({
         mainContentBox.add(this._nullMessageLabel);
         this._nullMessageLabel.show();
 
-        this.setButtons([{ label: _("Cancel"),
-                           action: Lang.bind(this, this.cancel),
-                           key:    Clutter.Escape
-                         },
-                         { label:  _("Authenticate"),
-                           action: Lang.bind(this, this._onAuthenticateButtonPressed),
-                           default: true
-                         }]);
+        // this.setButtons([{ label: _("Cancel"),
+        //                    action: Lang.bind(this, this.cancel),
+        //                    key:    Clutter.Escape
+        //                  },
+        //                  { label:  _("Authenticate"),
+        //                    action: Lang.bind(this, this._onAuthenticateButtonPressed),
+        //                    default: true
+        //                  }]);
+
+        this._cancelButton = this.addButton({ label: _("Cancel"),
+                                              action: Lang.bind(this, this.cancel),
+                                              key: Clutter.Escape });
+        this._okButton = this.addButton({ label:  _("Authenticate"),
+                                          action: Lang.bind(this, this._onAuthenticateButtonPressed),
+                                          default: true });
 
         this._doneEmitted = false;
 
         this._identityToAuth = Polkit.UnixUser.new_for_name(userName);
         this._cookie = cookie;
+    }
 
+    performAuthentication() {
+        this.destroySession();
         this._session = new PolkitAgent.Session({ identity: this._identityToAuth,
                                                   cookie: this._cookie });
         this._session.connect('completed', Lang.bind(this, this._onSessionCompleted));
         this._session.connect('request', Lang.bind(this, this._onSessionRequest));
         this._session.connect('show-error', Lang.bind(this, this._onSessionShowError));
         this._session.connect('show-info', Lang.bind(this, this._onSessionShowInfo));
-    }
 
-    startAuthentication() {
         this._session.initiate();
     }
 
@@ -213,19 +221,28 @@ var AuthenticationDialog = GObject.registerClass({
             log('polkitAuthenticationAgent: Failed to show modal dialog.' +
                 ' Dismissing authentication request for action-id ' + this.actionId +
                 ' cookie ' + this._cookie);
-            this._emitDone(false, true);
+            this._emitDone(true);
         }
     }
 
-    _emitDone(keepVisible, dismissed) {
+    _emitDone(dismissed) {
         if (!this._doneEmitted) {
             this._doneEmitted = true;
-            this.emit('done', keepVisible, dismissed);
+            this.emit('done', dismissed);
         }
+    }
+
+    _updateSensitivity(sensitive) {
+        this._passwordEntry.reactive = sensitive;
+        this._passwordEntry.clutter_text.editable = sensitive;
+
+        this._okButton.can_focus = sensitive;
+        this._okButton.reactive = sensitive;
     }
 
     _onEntryActivate() {
         let response = this._passwordEntry.get_text();
+        this._updateSensitivity(false);
         this._session.response(response);
         // When the user responds, dismiss already shown info and
         // error texts (if any)
@@ -239,12 +256,15 @@ var AuthenticationDialog = GObject.registerClass({
     }
 
     _onSessionCompleted(session, gainedAuthorization) {
-        if (this._completed)
+        if (this._completed || this._doneEmitted)
             return;
 
         this._completed = true;
 
-        if (!gainedAuthorization) {
+        if (gainedAuthorization) {
+            this._emitDone(false);
+
+        } else {
             /* Unless we are showing an existing error message from the PAM
              * module (the PAM module could be reporting the authentication
              * error providing authentication-method specific information),
@@ -260,8 +280,10 @@ var AuthenticationDialog = GObject.registerClass({
                 this._infoMessageLabel.hide();
                 this._nullMessageLabel.hide();
             }
+
+            /* Try and authenticate again */
+            this.performAuthentication();
         }
-        this._emitDone(!gainedAuthorization, false);
     }
 
     _onSessionRequest(session, request, echo_on) {
@@ -279,6 +301,7 @@ var AuthenticationDialog = GObject.registerClass({
         this._passwordBox.show();
         this._passwordEntry.set_text('');
         this._passwordEntry.grab_key_focus();
+        this._updateSensitivity(true);
         this._ensureOpen();
     }
 
@@ -304,13 +327,14 @@ var AuthenticationDialog = GObject.registerClass({
         if (this._session) {
             if (!this._completed)
                 this._session.cancel();
+            this._completed = false;
             this._session = null;
         }
     }
 
     _onUserChanged() {
         if (this._user.is_loaded) {
-            if (this._userIcon) {
+            if (this._userIcon && this._userIcon) {
                 this._userIcon.update();
                 this._userIcon.show();
             }
@@ -320,7 +344,7 @@ var AuthenticationDialog = GObject.registerClass({
     cancel() {
         this._wasDismissed = true;
         this.close(global.get_current_time());
-        this._emitDone(false, true);
+        this._emitDone(true);
     }
 
 });
@@ -338,7 +362,7 @@ AuthenticationAgent.prototype = {
         // TODO - maybe register probably should wait until later, especially at first login?
         this._native.register();
         this._currentDialog = null;
-        this._isCompleting = false;
+        // this._isCompleting = false;
     },
 
     _onInitiate: function(nativeAgent, actionId, message, iconName, cookie, userNames) {
@@ -355,44 +379,25 @@ AuthenticationAgent.prototype = {
         // discussion.
 
         this._currentDialog.connect('done', Lang.bind(this, this._onDialogDone));
-        this._currentDialog.startAuthentication();
+        this._currentDialog.performAuthentication();
     },
 
     _onCancel: function(nativeAgent) {
-        this._completeRequest(false, false);
+        this._completeRequest(false);
     },
 
-    _onDialogDone: function(dialog, keepVisible, dismissed) {
-        this._completeRequest(keepVisible, dismissed);
+    _onDialogDone: function(dialog, dismissed) {
+        this._completeRequest(dismissed);
     },
 
-    _reallyCompleteRequest: function(dismissed) {
+    _completeRequest: function(dismissed) {
         this._currentDialog.close();
         this._currentDialog.destroySession();
         this._currentDialog = null;
-        this._isCompleting = false;
+        // this._isCompleting = false;
 
-        this._native.complete(dismissed)
+        this._native.complete(dismissed);
     },
-
-    _completeRequest: function(keepVisible, wasDismissed) {
-        if (this._isCompleting)
-            return;
-
-        this._isCompleting = true;
-
-        if (keepVisible) {
-            // Give the user 2 seconds to read 'Authentication Failure' before
-            // dismissing the dialog
-            Mainloop.timeout_add(2000,
-                                 Lang.bind(this,
-                                           function() {
-                                               this._reallyCompleteRequest(wasDismissed);
-                                           }));
-        } else {
-            this._reallyCompleteRequest(wasDismissed);
-        }
-    }
 }
 
 function init() {
