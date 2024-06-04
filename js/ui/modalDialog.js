@@ -83,7 +83,7 @@ ModalDialog.prototype = {
         this._group.connect('key-press-event', Lang.bind(this, this._onKeyPressEvent));
 
         // this._backgroundBin = new St.Bin();
-        this.backgroundStack = new Cinnamon.Stack();
+        this.backgroundStack = new St.Widget({ layout_manager: new Clutter.BinLayout() });
         this._backgroundBin = new St.Bin({
             child: this.backgroundStack,
             x_fill: true,
