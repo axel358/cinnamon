@@ -179,10 +179,10 @@ var MessageDialogContent = GObject.registerClass({
             this[`_${prop}`].add_style_class_name(`message-dialog-${prop}`);
         });
 
-        let textProps = { ellipsize_mode: Pango.EllipsizeMode.NONE,
+        let textProps = { ellipsize: Pango.EllipsizeMode.NONE,
                           line_wrap: true };
-        Object.assign(this._subtitle.clutter_text, textProps);
-        Object.assign(this._body.clutter_text, textProps);
+        this._subtitle.clutter_text.set(textProps);
+        this._body.clutter_text.set(textProps);
 
         if (!params.hasOwnProperty('style_class'))
             params.style_class = 'message-dialog-main-layout';
@@ -218,7 +218,10 @@ var MessageDialogContent = GObject.registerClass({
     }
 
     set icon(icon) {
-        Object.assign(this._icon, { gicon: icon, visible: icon != null });
+        this._icon.set({
+            gicon: icon,
+            visible: icon != null
+        });
         this.notify('icon');
     }
 
@@ -235,7 +238,10 @@ var MessageDialogContent = GObject.registerClass({
     }
 
     _setLabel(label, prop, value) {
-        Object.assign(label, { text: value || '', visible: value != null });
+        label.set({
+            text: value || '',
+            visible: value != null
+        });
         this.notify(prop);
     }
 
