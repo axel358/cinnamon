@@ -114,6 +114,16 @@ st_password_entry_set_property (GObject      *gobject,
 }
 
 static void
+st_password_entry_dispose (GObject *gobject)
+{
+  StPasswordEntryPrivate *priv = ST_PASSWORD_ENTRY_PRIV (gobject);
+
+  g_clear_object (&priv->peek_password_icon);
+
+  G_OBJECT_CLASS(st_password_entry_parent_class)->dispose (gobject);
+}
+
+static void
 st_password_entry_class_init (StPasswordEntryClass *klass)
 {
   GObjectClass *gobject_class = G_OBJECT_CLASS (klass);
@@ -121,6 +131,7 @@ st_password_entry_class_init (StPasswordEntryClass *klass)
 
   gobject_class->get_property = st_password_entry_get_property;
   gobject_class->set_property = st_password_entry_set_property;
+  gobject_class->dispose = st_password_entry_dispose;
 
   st_entry_class->secondary_icon_clicked = st_password_entry_secondary_icon_clicked;
 
@@ -162,14 +173,15 @@ st_password_entry_init (StPasswordEntry *entry)
 
   priv->peek_password_icon = g_object_new (ST_TYPE_ICON,
                                            "style-class", "peek-password",
-                                           "icon-name", "eye-not-looking-symbolic",
+                                           "icon-type", ST_ICON_SYMBOLIC,
+                                           "icon-name", "dialog-warning",
                                            NULL);
   st_entry_set_secondary_icon (ST_ENTRY (entry), priv->peek_password_icon);
 
+  priv->show_peek_icon = TRUE;
+
   clutter_text = st_entry_get_clutter_text (ST_ENTRY (entry));
   clutter_text_set_password_char (CLUTTER_TEXT (clutter_text), BLACK_CIRCLE);
-
-  // st_entry_set_input_purpose (ST_ENTRY (entry), CLUTTER_INPUT_CONTENT_PURPOSE_PASSWORD);
 
   g_signal_connect (clutter_text, "notify::password-char",
                     G_CALLBACK (clutter_text_password_char_cb), entry);

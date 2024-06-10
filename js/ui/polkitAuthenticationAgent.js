@@ -34,57 +34,34 @@ const Mainloop = imports.mainloop;
 const Polkit = imports.gi.Polkit;
 const PolkitAgent = imports.gi.PolkitAgent;
 
+const Dialog = imports.ui.dialog;
 const ModalDialog = imports.ui.modalDialog;
 const CinnamonEntry = imports.ui.cinnamonEntry;
 const UserWidget = imports.ui.userWidget;
+const Util = imports.misc.util;
 
 const DIALOG_ICON_SIZE = 64;
 const DELAYED_RESET_TIMEOUT = 200;
 
-// function AuthenticationDialog(actionId, message, cookie, userNames) {
-//     this._init(actionId, message, cookie, userNames);
-// }
-
-// AuthenticationDialog.prototype = {
-//     __proto__: ModalDialog.ModalDialog.prototype,
-
-//     _init: function(actionId, message, cookie, userNames) {
-//         ModalDialog.ModalDialog.prototype._init.call(this, { styleClass: 'polkit-dialog' });
 var AuthenticationDialog = GObject.registerClass({
     Signals: { 'done': { param_types: [GObject.TYPE_BOOLEAN] } }
 }, class AuthenticationDialog extends ModalDialog.ModalDialog {
-    _init(actionId, message, cookie, userNames) {
-        super._init({ styleClass: 'polkit-dialog' });
+    _init(actionId, description, cookie, userNames) {
+        super._init({ styleClass: 'prompt-dialog' });
 
         this.actionId = actionId;
-        this.message = message;
+        this.message = description;
         this.userNames = userNames;
         this._wasDismissed = false;
-        // this._completed = false;
 
         this.connect('closed', this._onDialogClosed.bind(this));
 
-        let mainContentBox = new St.BoxLayout({ style_class: 'polkit-dialog-main-layout',
-                                                vertical: true });
-        this.contentLayout.add(mainContentBox,
-                               { x_fill: true,
-                                 y_fill: true });
+        let title = _("Authentication Required");
 
-        this._subjectLabel = new St.Label({ style_class: 'polkit-dialog-headline',
-                                            text: _("Authentication Required") });
+        let headerContent = new Dialog.MessageDialogContent({ title, description });
+        this.contentLayout.add_child(headerContent);
 
-        mainContentBox.add(this._subjectLabel,
-                       { y_fill:  false,
-                         y_align: St.Align.MIDDLE });
-
-        this._descriptionLabel = new St.Label({ style_class: 'polkit-dialog-description',
-                                                text: message });
-        this._descriptionLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-        this._descriptionLabel.clutter_text.line_wrap = true;
-
-        mainContentBox.add(this._descriptionLabel,
-                       { y_fill:  true,
-                         y_align: St.Align.START });
+        let bodyContent = new Dialog.MessageDialogContent();
 
         if (userNames.length > 1) {
             log('polkitAuthenticationAgent: Received ' + userNames.length +
@@ -92,98 +69,88 @@ var AuthenticationDialog = GObject.registerClass({
                 'considering the first one.');
         }
 
-        let userName = userNames[0];
+        let userName = GLib.get_user_name();
+        if (!userNames.includes(userName))
+            userName = 'root';
+        if (!userNames.includes(userName))
+            userName = userNames[0];
 
         this._user = AccountsService.UserManager.get_default().get_user(userName);
-        let userRealName = this._user.get_real_name()
-        this._userLoadedId = this._user.connect('notify::is-loaded',
-                                                this._onUserChanged.bind(this));
-        this._userChangedId = this._user.connect('changed',
-                                                 this._onUserChanged.bind(this));
 
-        // Special case 'root'
-        let userIsRoot = false;
-        if (userName == 'root') {
-            userIsRoot = true;
-            userRealName = _("Administrator");
-        }
+        let userBox = new St.BoxLayout({
+            style_class: 'polkit-dialog-user-layout',
+            vertical: true,
+        });
+        bodyContent.add_child(userBox);
 
-        if (userIsRoot) {
-            let userLabel = new St.Label(({ style_class: 'polkit-dialog-user-root-label',
-                                            text: userRealName }));
-            mainContentBox.add(userLabel);
-        } else {
-            let userBox = new St.BoxLayout({ style_class: 'polkit-dialog-user-layout',
-                                             vertical: true });
-            mainContentBox.add(userBox);
-            this._userAvatar = new UserWidget.Avatar(this._user, { iconSize: DIALOG_ICON_SIZE });
-            this._userAvatar.hide();
-            userBox.add(this._userAvatar,
-                        { x_fill:  false,
-                          y_fill:  true,
-                          x_align: St.Align.MIDDLE,
-                          y_align: St.Align.START });
-            let userLabel = new St.Label(({ style_class: 'polkit-dialog-user-label',
-                                            text: userRealName }));
-            userBox.add(userLabel,
-                        { x_fill:  false,
-                          y_fill:  true,
-                          x_align: St.Align.MIDDLE,
-                          y_align: St.Align.START });
-        }
+        this._userAvatar = new UserWidget.Avatar(this._user, {
+            iconSize: DIALOG_ICON_SIZE,
+        });
+        this._userAvatar.x_align = Clutter.ActorAlign.CENTER;
+        userBox.add(this._userAvatar, { x_fill: false });
 
-        this._onUserChanged();
+        this._userLabel = new St.Label({
+            style_class: userName === 'root'
+                ? 'polkit-dialog-user-root-label'
+                : 'polkit-dialog-user-label',
+        });
 
-        this._passwordBox = new St.BoxLayout({ vertical: false });
-        mainContentBox.add(this._passwordBox);
-        this._passwordLabel = new St.Label(({ style_class: 'polkit-dialog-password-label' }));
-        this._passwordBox.add(this._passwordLabel,
-                              { y_align: St.Align.MIDDLE });
-        this._passwordEntry = new St.Entry({ style_class: 'polkit-dialog-password-entry',
-                                             text: "",
-                                             can_focus: true});
+        if (userName === 'root')
+            this._userLabel.text = _('Administrator');
+
+        userBox.add_child(this._userLabel);
+
+        let passwordBox = new St.BoxLayout({
+            style_class: 'prompt-dialog-password-layout',
+            vertical: true,
+        });
+
+        this._passwordEntry = new St.Entry({
+            style_class: 'prompt-dialog-password-entry',
+            text: "",
+            can_focus: true,
+            visible: false,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
         CinnamonEntry.addContextMenu(this._passwordEntry, { isPassword: true });
         this._passwordEntry.clutter_text.connect('activate', this._onEntryActivate.bind(this));
         this._passwordEntry.bind_property('reactive',
             this._passwordEntry.clutter_text, 'editable',
             GObject.BindingFlags.SYNC_CREATE);
-        this._passwordBox.add(this._passwordEntry,
-                              { expand: true,
-                                y_align: St.Align.START });
-        // this.setInitialKeyFocus(this._passwordEntry);
-        this._passwordBox.hide();
+        passwordBox.add_child(this._passwordEntry);
 
-        this._errorMessageLabel = new St.Label({ style_class: 'polkit-dialog-error-label' });
+        let warningBox = new St.BoxLayout({ vertical: true });
+
+        this._errorMessageLabel = new St.Label({
+            style_class: 'prompt-dialog-error-label',
+            visible: false,
+        });
         this._errorMessageLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._errorMessageLabel.clutter_text.line_wrap = true;
-        mainContentBox.add(this._errorMessageLabel);
-        this._errorMessageLabel.hide();
 
-        this._infoMessageLabel = new St.Label({ style_class: 'polkit-dialog-info-label' });
+        warningBox.add_child(this._errorMessageLabel);
+
+        this._infoMessageLabel = new St.Label({
+            style_class: 'prompt-dialog-info-label',
+            visible: false,
+        });
         this._infoMessageLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._infoMessageLabel.clutter_text.line_wrap = true;
-        mainContentBox.add(this._infoMessageLabel);
-        this._infoMessageLabel.hide();
+
+        warningBox.add_child(this._infoMessageLabel);
 
         /* text is intentionally non-blank otherwise the height is not the same as for
          * infoMessage and errorMessageLabel - but it is still invisible because
          * cinnamon.css sets the color to be transparent
          */
-        this._nullMessageLabel = new St.Label({ style_class: 'polkit-dialog-null-label',
-                                                text: 'abc'});
+        this._nullMessageLabel = new St.Label({ style_class: 'prompt-dialog-null-label' });
         this._nullMessageLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
         this._nullMessageLabel.clutter_text.line_wrap = true;
-        mainContentBox.add(this._nullMessageLabel);
-        this._nullMessageLabel.show();
 
-        // this.setButtons([{ label: _("Cancel"),
-        //                    action: Lang.bind(this, this.cancel),
-        //                    key:    Clutter.Escape
-        //                  },
-        //                  { label:  _("Authenticate"),
-        //                    action: Lang.bind(this, this._onAuthenticateButtonPressed),
-        //                    default: true
-        //                  }]);
+        warningBox.add_child(this._nullMessageLabel);
+
+        passwordBox.add_child(warningBox);
+        bodyContent.add_child(passwordBox);
 
         this._cancelButton = this.addButton({ label: _("Cancel"),
                                               action: this.cancel.bind(this),
@@ -199,10 +166,18 @@ var AuthenticationDialog = GObject.registerClass({
             this._okButton.reactive = text.get_text().length > 0;
         });
 
+        this.contentLayout.add_child(bodyContent);
+
         this._doneEmitted = false;
 
         this._identityToAuth = Polkit.UnixUser.new_for_name(userName);
         this._cookie = cookie;
+
+        this._userLoadedId = this._user.connect('notify::is-loaded',
+            this._onUserChanged.bind(this));
+        this._userChangedId = this._user.connect('changed',
+            this._onUserChanged.bind(this));
+        this._onUserChanged();
     }
 
     performAuthentication() {
@@ -289,6 +264,8 @@ var AuthenticationDialog = GObject.registerClass({
                 this._errorMessageLabel.show();
                 this._infoMessageLabel.hide();
                 this._nullMessageLabel.hide();
+
+                Util.wiggle(this._passwordEntry);
             }
 
             /* Try and authenticate again */
@@ -304,18 +281,17 @@ var AuthenticationDialog = GObject.registerClass({
 
         // Cheap localization trick
         if (request == 'Password:')
-            this._passwordLabel.set_text(_("Password:"));
+            this._passwordEntry.hint_text = _("Password");
         else
-            this._passwordLabel.set_text(request);
+            this._passwordEntry.hint_text = request;
 
         if (echoOn)
             this._passwordEntry.clutter_text.set_password_char('');
         else
             this._passwordEntry.clutter_text.set_password_char('\u25cf'); // ● U+25CF BLACK CIRCLE
 
-        this._passwordBox.show();
+        this._passwordEntry.show();
         this._passwordEntry.set_text('');
-        // this._passwordEntry.grab_key_focus();
         this._passwordEntry.reactive  = true;
         this._okButton.reactive = false;
 
@@ -363,7 +339,7 @@ var AuthenticationDialog = GObject.registerClass({
             if (this.state != ModalDialog.State.OPENED)
                 return;
 
-            this._passwordBox.hide();
+            this._passwordEntry.hide();
             this._cancelButton.grab_key_focus();
             this._okButton.reactive = false;
         };
@@ -377,10 +353,16 @@ var AuthenticationDialog = GObject.registerClass({
     }
 
     _onUserChanged() {
-        if (this._user.is_loaded && this._userAvatar) {
-            this._userAvatar.update();
-            this._userAvatar.show();
-        }
+        if (!this._user.is_loaded)
+            return;
+
+        let userName = this._user.get_user_name();
+        let realName = this._user.get_real_name();
+
+        if (userName !== 'root')
+            this._userLabel.set_text(realName);
+
+        this._userAvatar.update();
     }
 
     cancel() {
@@ -404,14 +386,7 @@ var AuthenticationDialog = GObject.registerClass({
     }
 
 });
-// Signals.addSignalMethods(AuthenticationDialog.prototype);
 
-// function AuthenticationAgent() {
-//     this._init();
-// }
-
-// AuthenticationAgent.prototype = {
-//     _init: function() {
 var AuthenticationAgent = class {
     constructor() {
         this._native = new Cinnamon.PolkitAuthenticationAgent();
@@ -420,7 +395,6 @@ var AuthenticationAgent = class {
         // TODO - maybe register probably should wait until later, especially at first login?
         this._native.register();
         this._currentDialog = null;
-        // this._isCompleting = false;
     }
 
     _onInitiate(nativeAgent, actionId, message, iconName, cookie, userNames) {
@@ -451,7 +425,6 @@ var AuthenticationAgent = class {
     _completeRequest(dismissed) {
         this._currentDialog.close();
         this._currentDialog = null;
-        // this._isCompleting = false;
 
         this._native.complete(dismissed);
     }

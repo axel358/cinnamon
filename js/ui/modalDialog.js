@@ -1,7 +1,6 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
 
 const Clutter = imports.gi.Clutter;
-const Lang = imports.lang;
 const St = imports.gi.St;
 const Atk = imports.gi.Atk;
 const Cinnamon = imports.gi.Cinnamon;
@@ -127,15 +126,6 @@ var ModalDialog = GObject.registerClass({
         this.notify('state');
     }
 
-    /**
-     * destroy:
-     *
-     * Destroys the modal dialog
-     */
-    // destroy() {
-    //     this._group.destroy();
-    // }
-
     clearButtons() {
         this.dialogLayout.clearButtons();
     }
@@ -161,12 +151,12 @@ var ModalDialog = GObject.registerClass({
      * dialog.setButtons([
      *     {
      *         label: _("Cancel"),
-     *         action: Lang.bind(this, this.callback),
+     *         action: this.callback.bind(this),
      *         key: Clutter.KEY_Escape
      *     },
      *     {
      *         label: _("OK"),
-     *         action: Lang.bind(this, this.destroy),
+     *         action: this.destroy.bind(this),
      *         key: Clutter.KEY_Return
      *     }
      * ]);
@@ -375,18 +365,18 @@ class ConfirmDialog extends ModalDialog {
 
     /**
      * _init:
-     * @label (string): label to display on the confirm dialog
+     * @description (string): label to display on the confirm dialog
      * @callback (function): function to call when user clicks "yes"
      *
      * Constructor function.
      */
-    _init(label, callback) {
+    _init(description, callback) {
         super._init();
 
-        this.contentLayout.add(new St.Label({ text:        _("Confirm"),
-                                              style_class: 'confirm-dialog-title',
-                                              important:   true }));
-        this.contentLayout.add(new St.Label({text: label}));
+        let title = _("Confirm");
+
+        let content = new Dialog.MessageDialogContent({ title, description });
+        this.contentLayout.add_child(content);
         this.callback = callback;
 
         this.setButtons([
@@ -420,11 +410,11 @@ class NotifyDialog extends ModalDialog {
 
     /**
      * _init:
-     * @label (string): label to display on the notify dialog
+     * @description (string): label to display on the notify dialog
      *
      * Constructor function.
      */
-    _init(label) {
+    _init(description) {
         super._init();
         this.contentLayout.add(new St.Label({text: label}));
 
