@@ -280,7 +280,7 @@ var AuthenticationDialog = GObject.registerClass({
         }
 
         // Cheap localization trick
-        if (request == 'Password:')
+        if (request === 'Password:' || request === 'Password: ')
             this._passwordEntry.hint_text = _("Password");
         else
             this._passwordEntry.hint_text = request;
