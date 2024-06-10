@@ -14,6 +14,7 @@ const AppSwitcher = imports.ui.appSwitcher.appSwitcher;
 const Dialog = imports.ui.dialog;
 const ModalDialog = imports.ui.modalDialog;
 const WmGtkDialogs = imports.ui.wmGtkDialogs;
+const CloseDialog = imports.ui.closeDialog;
 
 const {CoverflowSwitcher} = imports.ui.appSwitcher.coverflowSwitcher;
 const {TimelineSwitcher} = imports.ui.appSwitcher.timelineSwitcher;
@@ -1486,12 +1487,11 @@ var WindowManager = class WindowManager {
         }
     }
 
-    _createCloseDialog(shellwm, window) {
-        return new WmGtkDialogs.CloseDialog(window);
+    _createCloseDialog(cinnamonwm, window) {
+        return new CloseDialog.CloseDialog(window);
     }
 
     _confirmDisplayChange() {
-        // let dialog = new WmGtkDialogs.DisplayChangesDialog(this._cinnamonwm);
         let dialog = new DisplayChangeDialog(this._cinnamonwm);
         dialog.open();
     }
