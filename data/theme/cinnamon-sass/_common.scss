@@ -1,0 +1,122 @@
+$base_padding: 6px;
+$base_margin: 4px;
+$base_border_radius: 6px;
+
+$scalable_icon_size: to_em(16px);
+
+// stage
+stage {
+  color: $fg_color;
+}
+
+%entry_common {
+  min-height: 22px;
+  border-radius: $base_border_radius;
+  padding: $base_padding $base_padding * 1.5;
+  border: 1px solid $outer_borders_color;
+  caret-color: $fg_color;
+  selected-color: black;
+  selection-background-color: $bg_color;
+  caret-size: 1px;
+}
+
+%button_common {
+  border-radius: $base_border_radius;
+  border: 1px solid $borders_color;
+  padding: $base_padding $base_padding * 6;
+  font-weight: bold;
+}
+
+%button {
+  @extend %button_common;
+  @include button(normal);
+  &:focus { @include button(focus); }
+  &:hover { @include button(hover); }
+  &:active { @include button(active); }
+}
+
+%flat_button {
+  @include button(normal, $style: flat);
+  &:focus { @include button(focus, $style: flat); }
+  &:hover { @include button(hover, $style: flat); }
+  &:insensitive { @include button(insensitive, $style: flat); }
+  &:selected,
+  &:active { @include button(active, $style: flat); }
+  &:checked { @include button(checked, $style: flat); }
+}
+
+%entry {
+  @extend %entry_common;
+  @include entry(normal);
+  &:focus { @include entry(focus); }
+  &:insensitive { @include entry(insensitive); }
+}
+
+// items in menus
+%menuitem {
+  font-weight: normal;
+  spacing: $base_margin;
+  transition-duration: 100ms;
+  padding: $base_padding $base_padding * 2;
+  margin: 0 $base_margin;
+  border: 1px solid transparent;
+  border-radius: $base_border_radius;
+}
+
+/* General Typography */
+%large_title {
+  font-weight: 300;
+  @include fontsize(24pt);
+}
+
+%title_1 {
+  font-weight: 800;
+  @include fontsize(20pt);
+}
+
+%title_2 {
+  font-weight: 800;
+  @include fontsize(15pt);
+}
+
+%title_3 {
+  font-weight: 700;
+  @include fontsize(15pt);
+}
+
+%title_4 {
+  font-weight: 700;
+  @include fontsize(13pt);
+}
+
+%heading {
+  font-weight: 700;
+  @include fontsize(11pt);
+}
+
+%caption_heading {
+  font-weight: 700;
+  @include fontsize(9pt);
+}
+
+%caption {
+  font-weight: 400;
+  @include fontsize(9pt);
+}
+
+%smaller {
+  font-weight: 400;
+  @include fontsize(8pt);
+}
+
+%slider {
+  height: 1em;
+  min-width: 15em;
+  -slider-height: 0.3em;
+  -slider-background-color: darken($base_color, 5%);
+  -slider-active-background-color: $fg_color;
+  -slider-border-color: transparent;
+  -slider-active-border-color: transparent;
+  -slider-border-width: 1px;
+  -slider-handle-radius: 0.5em;
+}

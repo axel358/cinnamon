@@ -1,0 +1,55 @@
+// various on screen popups
+
+%osd_base {
+  background-color: $base_color;
+  border: 1px solid $outer_borders_color;
+  border-radius: $base_border_radius;
+  box-shadow: 0 2px 4px 2px $shadow_color;
+  padding: $base_padding * 4;
+}
+
+.info-osd {
+  @extend %osd_base;
+
+  font-size: 1.2em;
+  font-weight: 700;
+  // background-color: $base_color;
+  // border: 1px solid $outer_borders_color;
+  // border-radius: $base_border_radius;
+  // padding: $base_padding * 4;
+  text-align: center;
+  // box-shadow: 0 2px 4px 2px $shadow_color;
+}
+
+.workspace-osd {
+    font-wieght: 300;
+    font-size: 2.5em;
+}
+
+.monitor-label {
+  border-radius: 0;
+  color: black;
+  padding: $base_padding * 2;
+  text-align: center;
+}
+
+// media keys osd
+
+.osd-window {
+  @extend %osd_base;
+
+  padding: $base_padding * 2 $base_padding * 4;
+  spacing: $base_margin;
+
+  & .level {
+    height: 0.7em;
+    border-radius: $base_border_radius;
+    background-color: $lightest_base_color;
+  }
+
+  & .level-bar {
+    border-radius: $base_border_radius;
+    background-color: $fg_color;
+  }
+
+}

@@ -1,0 +1,47 @@
+// global colors
+$base_color: #242424;
+$bg_color: #1a1a1a;
+$fg_color: #f7f7f7;
+
+// colored elements
+$error_color: #ff7b63;
+$error_bg_color: #c01c28;
+
+$success_color: #8ff0a4;
+$success_bg_color: #26a269;
+
+$destructive_bg_color: #c01c28;
+$destructive_color: #ff7b63;
+
+$warning_color: #f8e45c;
+$warning_bg_color: #cd9309;
+
+$accent_color: #78aeed;
+$accent_bg_color: #3584e4;
+
+$large_icon_color: transparentize($fg_color, 0.6);
+$lighter_text_color: mix($fg_color, $bg_color, 65%);
+
+// used as inset inside other widgets
+$lighter_base_color: lighten($base_color, 5%);
+$lighter_bg_color: lighten($bg_color, 5%);
+
+// hilighted item bgs
+$lightest_base_color: lighten($lighter_base_color, 5%);
+$lightest_bg_color: lighten($lighter_bg_color, 5%);
+
+// link colors
+$link_color: #1c71d8;
+
+// borders
+$borders_color: transparentize($fg_color, 0.9);
+$outer_borders_color: transparentize($fg_color, 0.85);
+
+// shadows
+$shadow_color: rgba(0, 0, 0, 0.2);
+
+// insensitive state
+$insensitive_fg_color: mix($fg_color, $bg_color, 40%);
+
+// hover state
+$applet_hover: transparentize($fg_color, 0.75);
