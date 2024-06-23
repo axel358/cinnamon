@@ -1,0 +1,34 @@
+// on screen keyboard
+
+#keyboard { background-color: $base_color; }
+
+.keyboard {
+ &-layout {
+    padding: $base_padding;
+    spacing: $base_padding;
+  }
+
+  &-row { spacing: $base_padding; }
+
+  &-key {
+    @extend %button;
+
+    min-height: 30px;
+    min-width: 30px;
+    font-size: 1.2em;
+    font-weight: bold;
+
+    &:grayed { @include button(insensitive); }
+  }
+
+  &-subkeys {
+    padding: $base_padding;
+    -arrow-border-radius: $base_border_radius;
+    -arrow-background-color: $base_color;
+    -arrow-border-width: 1px;
+    -arrow-border-color: $outer_borders_color;
+    -arrow-base: 20px;
+    -arrow-rise: 10px;
+    -boxpointer-gap: 0;
+  }
+}

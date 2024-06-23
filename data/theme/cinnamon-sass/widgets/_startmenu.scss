@@ -1,0 +1,108 @@
+$menu_outer_padding: 9px;
+
+%start_menu_button {
+  padding: $base_padding;
+  spacing: $base_margin;
+  border: 1px solid transparent;
+  border-radius: $base_border_radius;
+}
+
+.menu {
+
+  // this can be used to color the entire menu background but we aren't using it here
+  &-background {}
+
+  &-main-box { padding: 0; }
+
+  &-favorites {
+
+    &-box {
+      padding: $base_padding * 2;
+      background-color: $lighter_base_color;
+      border: 1px solid $outer_borders_color;
+      border-radius: $base_border_radius;
+    }
+
+    &-button {
+      @extend %start_menu_button;
+
+      &:hover {
+        background-color: $lightest_base_color;
+        border-color: $outer_borders_color;
+      }
+    }
+  }
+
+  &-categories-box { padding: $menu_outer_padding; }
+  &-applications-box { padding: $menu_outer_padding; }
+  // additional classes available for styling
+  &-applications-inner-box {}
+  &-applications-outer-box {}
+
+  &-application-button {
+    @extend %start_menu_button;
+
+    &:highlighted { font-weight: bold; }
+
+    &-selected {
+      @extend %start_menu_button;
+
+      background-color: $lighter_base_color;
+      border: $outer_borders_color;
+
+      &:highlighted { font-weight: bold; }
+    }
+  }
+
+  &-category-button {
+    @extend %start_menu_button;
+
+    &:hover {
+      background-color: $lighter_base_color;
+      border: $outer_borders_color;
+    }
+
+    &-selected {
+      @extend %start_menu_button;
+
+      background-color: $lighter_base_color;
+      border: $outer_borders_color;
+    }
+
+    &-greyed {
+      @extend %start_menu_button;
+      color: $insensitive_fg_color;
+      font-style: italic;
+
+      StIcon { opacity: 0.5; }
+    }
+  }
+
+  &-context-menu {}
+
+  &-selected-app {
+
+    &-box {
+      padding: $base_padding $base_padding * 2 0 $base_padding * 2;
+      text-align: right;
+      height: 2.2 em;
+    }
+
+    &-title { font-weight: bold; }
+    &-description { max-width: 150px; }
+  }
+
+  &-top-box {}
+  &-search-box {}
+  &-systembuttons-box {}
+}
+
+#menu-search-entry {
+  @extend %entry;
+  margin: $menu_outer_padding;
+  margin-top: 0;
+}
+
+.menu-search-entry-icon {
+  icon-size: $scalable_icon_size;
+}
