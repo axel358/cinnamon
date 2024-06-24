@@ -1,121 +1,111 @@
 // Modal dialogs
 
+.headline {
+  @extend %title_4;
+}
+
 .modal-dialog {
   background-color: $base_color;
   border-radius: $base_border_radius;
   border: 1px solid $outer_borders_color;
-  padding: $base_padding $base_padding * 2;
-  // spacing: $base_margin * 3;
 
-  .modal-dialog-button-box {
-    spacing: $base_padding * 3;
-    padding-top: $base_padding * 3;
+  .modal-dialog-content-box {
+    margin: $base_margin * 6 $base_margin * 8;
+    spacing: $base_margin * 3;
+    max-width: 28em;
+  }
 
-    .modal-dialog-button {
-      @extend %button;
-    }
+  .modal-dialog-linked-button {
+    @extend %linked_button;
   }
 
   .confirm-dialog-title {
     @extend %title_2;
     text-align: center;
-    padding-bottom: $base_padding * 3;
+    padding-bottom: $base_padding;
   }
+}
+
+// message dialog
+
+.message-dialog-content {
+  spacing: $base_padding * 3;
+
+  .message-dialog-title {
+    text-align: center;
+    @extend %title_2;
+
+    &.leightweight { @extend %title_4; }
+  }
+
+  .message-dialog-description { text-align: center; }
 }
 
 // run dialog
 
 .run-dialog {
-  padding: $base_padding * 2 $base_padding * 3;
-  padding-bottom: 0;
 
-  .run-dialog-label {
-    @extend %title_2;
-    padding-bottom: $base_padding * 3;
-    text-align: center;
+  .modal-dialog-content-box {
+    margin-top: $base_padding * 3;
+    margin-bottom: $base_padding * 3;
   }
 
-  .run-dialog-description {
+  &-description {
     @extend %caption;
     text-align: center;
-    padding-top: $base_padding * 2;
+    color: darken($fg_color, 20%);
 
     &.error { color: $error_color; }
   }
 
-  .run-dialog-completion-box {
+  &-completion-box {
     padding-top: $base_padding;
     padding-left: $base_padding * 2;
   }
 
-  .run-dialog-entry {
+  &-entry {
     @extend %entry;
+
     width: 20em;
+    height: 1.2em;
   }
 }
 
 // password or authentication dialog
 
-// .prompt-dialog {
-//   width: 28em;
+.prompt-dialog {
+  width: 28em;
 
-//   .modal-dialog-content-box {
-//     margin-bottom: $base_margin * 6;
-//   }
-
-//   &-password-entry {
-//     @extend %entry;
-//     width: 20em;
-//   }
-
-//   &-password-layout { spacing: $base_margin * 2;}
-
-//   &-error-label,
-//   &-info-label,
-//   &-null-label {
-//     text-align: center;
-//     @extend %caption;
-//   }
-
-//   &-error-label { color: $error_color; }
-// }
-
-// polkit dialog
-
-.polkit-dialog {
-  width: 300px;
-
-  &-main-layout { spacing: $base_padding * 2; }
-
-  &-headline {
-    @extend %title_2;
-    text-align: center;
-  }
-
-  &-description { text-align: center; }
-
-  &-user-layout {
-    spacing: $base_margin * 2;
-  }
-
-  &-user-root-label { color: $error_color; }
-
-  &-password-label:ltr {
-    padding-top: 0.5em;
-    padding-right: 0.5em;
-  }
-
-  &-password-label:rtl {
-    padding-left: 0.5em;
+  .modal-dialog-content-box {
+    margin-bottom: $base_margin * 6;
   }
 
   &-password-entry {
     @extend %entry;
-    width: 15em;
+    width: 20em;
+  }
 
-    .capslock-warning { icon-size: $scalable_icon_size; }
+  &-password-layout { spacing: $base_margin * 2;}
+
+  &-error-label,
+  &-info-label,
+  &-null-label {
+    text-align: center;
+    @extend %caption;
   }
 
   &-error-label { color: $error_color; }
-  &-null-label { color: transparent; }
+}
+
+// polkit dialog
+
+.polkit-dialog {
+
+  &-user-layout {
+    text-align: center;
+    spacing: $base_margin * 2;
+    margin-bottom: $base_padding;
+  }
+
+  &-user-root-label { color: $error_color; }
 }

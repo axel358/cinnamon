@@ -1,7 +1,7 @@
 stage {
   color: #f7f7f7; }
 
-#menu-search-entry, .expo-workspaces-name-entry, .polkit-dialog-password-entry, .run-dialog .run-dialog-entry {
+#menu-search-entry, .expo-workspaces-name-entry, .prompt-dialog-password-entry, .run-dialog-entry {
   min-height: 22px;
   border-radius: 6px;
   padding: 6px 9px;
@@ -11,27 +11,27 @@ stage {
   selection-background-color: #1a1a1a;
   caret-size: 1px; }
 
-.notification-icon-button, .notification-button, .keyboard-key, .modal-dialog .modal-dialog-button-box .modal-dialog-button, .sound-player StButton {
+.notification-icon-button, .notification-button, .keyboard-key, .sound-player StButton {
   border-radius: 6px;
   border: 1px solid rgba(247, 247, 247, 0.1);
   padding: 6px 36px;
   font-weight: bold; }
 
-.notification-icon-button, .notification-button, .keyboard-key, .modal-dialog .modal-dialog-button-box .modal-dialog-button, .sound-player StButton {
+.notification-icon-button, .notification-button, .keyboard-key, .sound-player StButton {
   color: #f7f7f7;
   background-color: #353535; }
-  .notification-icon-button:focus, .notification-button:focus, .keyboard-key:focus, .modal-dialog .modal-dialog-button-box .modal-dialog-button:focus, .sound-player StButton:focus {
+  .notification-icon-button:focus, .notification-button:focus, .keyboard-key:focus, .sound-player StButton:focus {
     color: #f7f7f7;
-    background-color: #26a269; }
-  .notification-icon-button:hover, .notification-button:hover, .keyboard-key:hover, .modal-dialog .modal-dialog-button-box .modal-dialog-button:hover, .sound-player StButton:hover {
+    background-color: #353535; }
+  .notification-icon-button:hover, .notification-button:hover, .keyboard-key:hover, .sound-player StButton:hover {
     color: #f7f7f7;
     background-color: #3f3f3f; }
-  .notification-icon-button:active, .notification-button:active, .keyboard-key:active, .modal-dialog .modal-dialog-button-box .modal-dialog-button:active, .sound-player StButton:active {
+  .notification-icon-button:active, .notification-button:active, .keyboard-key:active, .sound-player StButton:active {
     color: #f7f7f7;
     background-color: #4c4c4c; }
-    .notification-icon-button:active:hover, .notification-button:active:hover, .keyboard-key:active:hover, .modal-dialog .modal-dialog-button-box .modal-dialog-button:active:hover, .sound-player StButton:active:hover {
+    .notification-icon-button:active:hover, .notification-button:active:hover, .keyboard-key:active:hover, .sound-player StButton:active:hover {
       background-color: #565656; }
-    .notification-icon-button:active:focus, .notification-button:active:focus, .keyboard-key:active:focus, .modal-dialog .modal-dialog-button-box .modal-dialog-button:active:focus, .sound-player StButton:active:focus {
+    .notification-icon-button:active:focus, .notification-button:active:focus, .keyboard-key:active:focus, .sound-player StButton:active:focus {
       background-color: focus_bg_color(#4c4c4c); }
 
 .sound-player StButton:small {
@@ -39,7 +39,7 @@ stage {
   background-color: #242424; }
   .sound-player StButton:focus:small {
     color: #f7f7f7;
-    background-color: #26a269; }
+    background-color: #242424; }
   .sound-player StButton:hover:small {
     color: #f7f7f7;
     background-color: #2e2e2e; }
@@ -61,16 +61,71 @@ stage {
     .sound-player StButton:checked:active:small {
       background-color: #4f4f4f; }
 
-#menu-search-entry, .expo-workspaces-name-entry, .polkit-dialog-password-entry, .run-dialog .run-dialog-entry {
+#menu-search-entry, .expo-workspaces-name-entry, .prompt-dialog-password-entry, .run-dialog-entry {
   background-color: #343434;
   color: #f7f7f7; }
-  #menu-search-entry:focus, .expo-workspaces-name-entry:focus, .polkit-dialog-password-entry:focus, .run-dialog .run-dialog-entry:focus {
+  #menu-search-entry:focus, .expo-workspaces-name-entry:focus, .prompt-dialog-password-entry:focus, .run-dialog-entry:focus {
     background-color: #343434;
     color: #f7f7f7;
     border-color: #3584e4; }
-  #menu-search-entry:insensitive, .expo-workspaces-name-entry:insensitive, .polkit-dialog-password-entry:insensitive, .run-dialog .run-dialog-entry:insensitive {
+  #menu-search-entry:insensitive, .expo-workspaces-name-entry:insensitive, .prompt-dialog-password-entry:insensitive, .run-dialog-entry:insensitive {
     background-color: #2c2c2c;
     color: rgba(247, 247, 247, 0.5); }
+  #menu-search-entry StLabel.hint-text, .expo-workspaces-name-entry StLabel.hint-text, .prompt-dialog-password-entry StLabel.hint-text, .run-dialog-entry StLabel.hint-text {
+    color: rgba(247, 247, 247, 0.3); }
+  #menu-search-entry .capslock-warning, .expo-workspaces-name-entry .capslock-warning, .prompt-dialog-password-entry .capslock-warning, .run-dialog-entry .capslock-warning {
+    icon-size: 1.091em; }
+
+.modal-dialog .modal-dialog-linked-button {
+  padding: 12px;
+  font-weight: bold;
+  border: 1px solid rgba(247, 247, 247, 0.15);
+  border-right-width: 0;
+  border-left-width: 0;
+  border-bottom-width: 0;
+  color: #f7f7f7;
+  background-color: #353535; }
+  .modal-dialog .modal-dialog-linked-button:ltr {
+    margin-right: 1px; }
+  .modal-dialog .modal-dialog-linked-button:rtl {
+    margin-left: 1px; }
+  .modal-dialog .modal-dialog-linked-button:focus {
+    color: #f7f7f7;
+    background-color: #353535; }
+  .modal-dialog .modal-dialog-linked-button:hover {
+    color: #f7f7f7;
+    background-color: #3f3f3f; }
+  .modal-dialog .modal-dialog-linked-button:active {
+    color: #f7f7f7;
+    background-color: #4c4c4c; }
+    .modal-dialog .modal-dialog-linked-button:active:hover {
+      background-color: #565656; }
+    .modal-dialog .modal-dialog-linked-button:active:focus {
+      background-color: focus_bg_color(#4c4c4c); }
+  .modal-dialog .modal-dialog-linked-button:checked {
+    color: #f7f7f7;
+    background-color: #494949; }
+    .modal-dialog .modal-dialog-linked-button:checked:hover {
+      background-color: #545454; }
+    .modal-dialog .modal-dialog-linked-button:checked:active {
+      background-color: #606060; }
+  .modal-dialog .modal-dialog-linked-button:insensitive {
+    color: rgba(247, 247, 247, 0.5);
+    background-color: #2d2d2d; }
+  .modal-dialog .modal-dialog-linked-button:first-child:ltr {
+    border-radius: 0 0 0 5px; }
+  .modal-dialog .modal-dialog-linked-button:last-child:ltr {
+    border-radius: 0 0 5px;
+    margin-right: 0; }
+  .modal-dialog .modal-dialog-linked-button:first-child:rtl {
+    border-radius: 0 0 5px; }
+  .modal-dialog .modal-dialog-linked-button:last-child:rtl {
+    border-radius: 0 0 0 5px;
+    margin-left: 0; }
+  .modal-dialog .modal-dialog-linked-button:first-child:last-child {
+    border-radius: 0 0 5px 5px;
+    margin-left: 0;
+    margin-right: 0; }
 
 .popup-sub-menu .popup-menu-item, .popup-menu-item {
   font-weight: normal;
@@ -86,7 +141,7 @@ stage {
   font-weight: 300;
   font-size: 2.182em; }
 
-.polkit-dialog-headline, .run-dialog .run-dialog-label, .modal-dialog .confirm-dialog-title {
+.message-dialog-content .message-dialog-title, .modal-dialog .confirm-dialog-title {
   font-weight: 800;
   font-size: 1.364em; }
 
@@ -94,7 +149,7 @@ stage {
   font-weight: 700;
   font-size: 1.364em; }
 
-.calendar-events-date-label, .calendar-today-day-label, .user-widget.vertical .user-widget-label {
+.message-dialog-content .message-dialog-title.leightweight, .headline, .calendar-events-date-label, .calendar-today-day-label, .user-widget.vertical .user-widget-label {
   font-weight: 700;
   font-size: 1.182em; }
 
@@ -102,7 +157,7 @@ stage {
   font-weight: 700;
   font-size: 1em; }
 
-.run-dialog .run-dialog-description, .calendar-event-countdown, .user-widget-label {
+.prompt-dialog-error-label, .prompt-dialog-info-label, .prompt-dialog-null-label, .run-dialog-description, .calendar-event-countdown, .user-widget-label {
   font-weight: 400;
   font-size: 0.818em; }
 
@@ -545,57 +600,60 @@ StScrollBar StButton#hhandle {
 .modal-dialog {
   background-color: #242424;
   border-radius: 6px;
-  border: 1px solid rgba(247, 247, 247, 0.15);
-  padding: 6px 12px; }
-  .modal-dialog .modal-dialog-button-box {
-    spacing: 18px;
-    padding-top: 18px; }
+  border: 1px solid rgba(247, 247, 247, 0.15); }
+  .modal-dialog .modal-dialog-content-box {
+    margin: 24px 32px;
+    spacing: 12px;
+    max-width: 28em; }
   .modal-dialog .confirm-dialog-title {
     text-align: center;
-    padding-bottom: 18px; }
+    padding-bottom: 6px; }
 
-.run-dialog {
-  padding: 12px 18px;
-  padding-bottom: 0; }
-  .run-dialog .run-dialog-label {
-    padding-bottom: 18px;
+.message-dialog-content {
+  spacing: 18px; }
+  .message-dialog-content .message-dialog-title {
     text-align: center; }
-  .run-dialog .run-dialog-description {
-    text-align: center;
-    padding-top: 12px; }
-    .run-dialog .run-dialog-description.error {
-      color: #ff7b63; }
-  .run-dialog .run-dialog-completion-box {
-    padding-top: 6px;
-    padding-left: 12px; }
-  .run-dialog .run-dialog-entry {
+  .message-dialog-content .message-dialog-description {
+    text-align: center; }
+
+.run-dialog .modal-dialog-content-box {
+  margin-top: 18px;
+  margin-bottom: 18px; }
+
+.run-dialog-description {
+  text-align: center;
+  color: #c4c4c4; }
+  .run-dialog-description.error {
+    color: #ff7b63; }
+
+.run-dialog-completion-box {
+  padding-top: 6px;
+  padding-left: 12px; }
+
+.run-dialog-entry {
+  width: 20em;
+  height: 1.2em; }
+
+.prompt-dialog {
+  width: 28em; }
+  .prompt-dialog .modal-dialog-content-box {
+    margin-bottom: 24px; }
+  .prompt-dialog-password-entry {
     width: 20em; }
-
-.polkit-dialog {
-  width: 300px; }
-  .polkit-dialog-main-layout {
-    spacing: 12px; }
-  .polkit-dialog-headline {
-    text-align: center; }
-  .polkit-dialog-description {
-    text-align: center; }
-  .polkit-dialog-user-layout {
+  .prompt-dialog-password-layout {
     spacing: 8px; }
-  .polkit-dialog-user-root-label {
+  .prompt-dialog-error-label, .prompt-dialog-info-label, .prompt-dialog-null-label {
+    text-align: center; }
+  .prompt-dialog-error-label {
     color: #ff7b63; }
-  .polkit-dialog-password-label:ltr {
-    padding-top: 0.5em;
-    padding-right: 0.5em; }
-  .polkit-dialog-password-label:rtl {
-    padding-left: 0.5em; }
-  .polkit-dialog-password-entry {
-    width: 15em; }
-    .polkit-dialog-password-entry .capslock-warning {
-      icon-size: 1.091em; }
-  .polkit-dialog-error-label {
-    color: #ff7b63; }
-  .polkit-dialog-null-label {
-    color: transparent; }
+
+.polkit-dialog-user-layout {
+  text-align: center;
+  spacing: 8px;
+  margin-bottom: 6px; }
+
+.polkit-dialog-user-root-label {
+  color: #ff7b63; }
 
 .workspace-thumbnails {
   spacing: 26px; }
