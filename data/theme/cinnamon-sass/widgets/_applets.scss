@@ -38,35 +38,6 @@ $applet_padding: 6px;
   }
 }
 
-// temporary
-
-.applet-heading-icon {
-  padding: $base_padding;
-  border: 1px solid $fg_color;
-  border-radius: 9999px;
-}
-
-.main-icon { icon-size: 24px; }
-
-// battery
-
-.device-box {
-
-  // .applet-heading-icon {
-  //   background-color: transparentize($error_color, 0.7);
-  //   border-color: $error_color;
-  // }
-
-  .device-labels {
-    margin-left: $base_margin * 2;
-    spacing: $base_margin;
-  }
-
-  .primary-label { @extend %heading; }
-
-  .status-label { color: $lighter_text_color; }
-}
-
 // cornerbar applet
 
 .applet-cornerbar {
@@ -109,7 +80,30 @@ $applet_padding: 6px;
   }
 }
 
-//
+// power applet
+
+.device-box {
+
+  .device-icon {
+    icon-size: to_em(24px);
+    color: $fg_color;
+  }
+
+  .device-labels {
+    margin-left: $base_margin * 2;
+    spacing: $base_margin;
+
+    .primary-label {
+      @extend %heading;
+
+      color: $fg_color;
+    }
+
+    .status-label { color: $lighter_text_color; }
+  }
+}
+
+// sound applet
 
 .sound-player {
 
