@@ -95,7 +95,7 @@
 
   @if $type == 'focus' {
     color: $tc;
-    background-color: $success_bg_color;
+    background-color: $button_bg_color;
   }
 
   // hover button
