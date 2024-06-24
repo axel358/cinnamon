@@ -13,12 +13,7 @@
 
   font-size: 1.2em;
   font-weight: 700;
-  // background-color: $base_color;
-  // border: 1px solid $outer_borders_color;
-  // border-radius: $base_border_radius;
-  // padding: $base_padding * 4;
   text-align: center;
-  // box-shadow: 0 2px 4px 2px $shadow_color;
 }
 
 .workspace-osd {
@@ -52,4 +47,12 @@
     background-color: $fg_color;
   }
 
+}
+
+//  resize popup
+
+.resize-popup {
+  @extend %osd_base;
+
+  padding: $base_padding;
 }
