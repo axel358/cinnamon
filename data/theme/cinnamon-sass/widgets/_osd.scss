@@ -1,11 +1,55 @@
 // various on screen popups
 
+$barlevel_height: 6px;
+
 %osd_base {
   background-color: $base_color;
   border: 1px solid $outer_borders_color;
   border-radius: $base_border_radius;
   box-shadow: 0 2px 4px 2px $shadow_color;
   padding: $base_padding * 4;
+}
+
+// media keys osd
+
+.osd-window {
+  @extend %heading;
+  background-color: transparentize($bg_color, 0.05);
+  border: 1px solid transparentize($outer_borders_color, 0.05);
+  border-radius: 9999px;
+  text-align: center;
+  font-weight: bold;
+
+  padding: $base_padding * 2 $base_padding * 4;
+  spacing: $base_padding * 2;
+  & > * { spacing: $base_padding * 2; }
+
+  StIcon {
+    icon-size: 32px;
+  }
+
+  StLabel {
+    &:ltr { margin-right: $base_padding; }
+    &:rtl { margin-left: $base_padding; }
+  }
+
+  .level {
+    min-width: 160px;
+    -barlevel-height: $barlevel_height;
+    -barlevel-background-color: $base_color;
+    -barlevel-active-background-color: $fg_color;
+    -barlevel-overdrive-color: $warning_color;
+    -barlevel-overdrive-separator-width: $base_padding * 0.5;
+
+    &:ltr { margin-right: $base_padding; }
+    &:rtl { margin-left: $base_padding; }
+  }
+
+  .level-bar {
+    border-radius: $base_border_radius;
+    background-color: $fg_color;
+  }
+
 }
 
 .info-osd {
@@ -26,27 +70,6 @@
   color: black;
   padding: $base_padding * 2;
   text-align: center;
-}
-
-// media keys osd
-
-.osd-window {
-  @extend %osd_base;
-
-  padding: $base_padding * 2 $base_padding * 4;
-  spacing: $base_margin;
-
-  & .level {
-    height: 0.7em;
-    border-radius: $base_border_radius;
-    background-color: $lightest_base_color;
-  }
-
-  & .level-bar {
-    border-radius: $base_border_radius;
-    background-color: $fg_color;
-  }
-
 }
 
 //  resize popup

@@ -153,7 +153,7 @@ stage {
   font-weight: 700;
   font-size: 1.182em; }
 
-.calendar-event-time-future, .calendar-event-time-present, .calendar-event-time-past, .calendar-month-label, .device-box .primary-label {
+.osd-window, .calendar-event-time-future, .calendar-event-time-present, .calendar-event-time-past, .calendar-month-label, .device-box .device-labels .primary-label {
   font-weight: 700;
   font-size: 1em; }
 
@@ -233,21 +233,6 @@ stage {
     height: 1px;
     background: rgba(247, 247, 247, 0.2); }
 
-.applet-heading-icon {
-  padding: 6px;
-  border: 1px solid #f7f7f7;
-  border-radius: 9999px; }
-
-.main-icon {
-  icon-size: 24px; }
-
-.device-box .device-labels {
-  margin-left: 8px;
-  spacing: 4px; }
-
-.device-box .status-label {
-  color: #aaaaaa; }
-
 .applet-cornerbar {
   width: 8px;
   background-color: #272727;
@@ -274,6 +259,18 @@ stage {
     padding: 2px 0; }
     .panel-launchers.vertical .launcher {
       padding: 2px 0; }
+
+.device-box .device-icon {
+  icon-size: 1.637em;
+  color: #f7f7f7; }
+
+.device-box .device-labels {
+  margin-left: 8px;
+  spacing: 4px; }
+  .device-box .device-labels .primary-label {
+    color: #f7f7f7; }
+  .device-box .device-labels .status-label {
+    color: #aaaaaa; }
 
 .sound-player > StBoxLayout:first-child {
   spacing: 4px;
@@ -865,12 +862,46 @@ StScrollBar StButton#hhandle {
   .notification-icon-button {
     padding: 6px; }
 
-.osd-window, .info-osd {
+.resize-popup, .info-osd {
   background-color: #242424;
   border: 1px solid rgba(247, 247, 247, 0.15);
   border-radius: 6px;
   box-shadow: 0 2px 4px 2px rgba(0, 0, 0, 0.2);
   padding: 24px; }
+
+.osd-window {
+  background-color: rgba(26, 26, 26, 0.95);
+  border: 1px solid rgba(247, 247, 247, 0.1);
+  border-radius: 9999px;
+  text-align: center;
+  font-weight: bold;
+  padding: 12px 24px;
+  spacing: 12px; }
+  .osd-window > * {
+    spacing: 12px; }
+  .osd-window StIcon {
+    icon-size: 32px; }
+  .osd-window StLabel:ltr {
+    margin-right: 6px; }
+  .osd-window StLabel:rtl {
+    margin-left: 6px; }
+  .osd-window .level {
+    margin-bottom: 4px;
+    min-width: 160px;
+    -barlevel-height: 6px;
+    -barlevel-background-color: #242424;
+    -barlevel-active-background-color: #f7f7f7;
+    -barlevel-overdrive-color: yellow;
+    -barlevel-overdrive-separator-width: 3px; }
+    .osd-window .level:first-child {
+      margin-bottom: 0; }
+    .osd-window .level:ltr {
+      margin-right: 6px; }
+    .osd-window .level:rtl {
+      margin-left: 6px; }
+  .osd-window .level-bar {
+    border-radius: 6px;
+    background-color: #f7f7f7; }
 
 .info-osd {
   font-size: 1.2em;
@@ -887,16 +918,8 @@ StScrollBar StButton#hhandle {
   padding: 12px;
   text-align: center; }
 
-.osd-window {
-  padding: 12px 24px;
-  spacing: 4px; }
-  .osd-window .level {
-    height: 0.7em;
-    border-radius: 6px;
-    background-color: #3e3e3e; }
-  .osd-window .level-bar {
-    border-radius: 6px;
-    background-color: #f7f7f7; }
+.resize-popup {
+  padding: 6px; }
 
 .panel-top, .panel-bottom, .panel-left, .panel-right {
   font-weight: bold;
