@@ -2,6 +2,10 @@
 
 $barlevel_height: 6px;
 
+$ws_indicator_height: 32px;
+$ws_dot_active: $ws_indicator_height / 3;
+$ws_dot_inactive: $ws_indicator_height / 6;
+
 %osd_base {
   background-color: $base_color;
   border: 1px solid $outer_borders_color;
@@ -44,12 +48,33 @@ $barlevel_height: 6px;
     &:ltr { margin-right: $base_padding; }
     &:rtl { margin-left: $base_padding; }
   }
+}
 
-  .level-bar {
-    border-radius: $base_border_radius;
-    background-color: $fg_color;
+.workspace-osd {
+  @extend %heading;
+  background-color: transparentize($bg_color, 0.05);
+  border: 1px solid transparentize($outer_borders_color, 0.05);
+  border-radius: 9999px;
+  text-align: center;
+  font-weight: bold;
+  padding: $base_padding $base_padding * 6 0 $base_padding * 6;
+
+  &-indicator-box {
+    spacing: $base_padding * 2;
   }
 
+  &-indicator {
+    background-color: transparentize($fg_color, 0.5);
+    padding: $ws_dot_inactive / 2;
+    margin: ($ws_indicator_height - $ws_dot_inactive) / 2;
+    border-radius: $ws_indicator_height;
+
+    &:active {
+      background-color: $accent_color;
+      padding: $ws_dot_active / 2;
+      margin: ($ws_indicator_height - $ws_dot_active) / 2;
+    }
+  }
 }
 
 .info-osd {
@@ -58,11 +83,6 @@ $barlevel_height: 6px;
   font-size: 1.2em;
   font-weight: 700;
   text-align: center;
-}
-
-.workspace-osd {
-    font-wieght: 300;
-    font-size: 2.5em;
 }
 
 .monitor-label {
