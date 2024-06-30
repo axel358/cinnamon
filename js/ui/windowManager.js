@@ -14,6 +14,7 @@ const AppSwitcher = imports.ui.appSwitcher.appSwitcher;
 const Dialog = imports.ui.dialog;
 const ModalDialog = imports.ui.modalDialog;
 const CloseDialog = imports.ui.closeDialog;
+const WorkspaceOsd = imports.ui.workspaceOsd;
 
 const {CoverflowSwitcher} = imports.ui.appSwitcher.coverflowSwitcher;
 const {TimelineSwitcher} = imports.ui.appSwitcher.timelineSwitcher;
@@ -336,7 +337,7 @@ var WindowManager = class WindowManager {
         this._dimmedWindows = [];
         this._animationBlockCount = 0;
         this._switchData = null;
-        this._workspaceOSDs = [];
+        this._workspaceOsds = [];
 
         this._cinnamonwm.connect('kill-window-effects', (cinnamonwm, actor) => {
             this._unminimizeWindowDone(cinnamonwm, actor);
@@ -1306,54 +1307,21 @@ var WindowManager = class WindowManager {
     }
 
     showWorkspaceOSD() {
-        this._hideWorkspaceOSD(true);
-        if (global.settings.get_boolean('workspace-osd-visible')) {
-            let current_workspace_index = global.workspace_manager.get_active_workspace_index();
-            if (this.wm_settings.get_boolean('workspaces-only-on-primary')) {
-                this._showWorkspaceOSDOnMonitor(Main.layoutManager.primaryMonitor.index, current_workspace_index);
-            }
-            else {
-                let {monitors} = Main.layoutManager;
-                for (let i = 0; i < monitors.length; i++) {
-                    this._showWorkspaceOSDOnMonitor(i, current_workspace_index);
-                }
-            }
-        }
-    }
+        let currentWorkspaceIndex = global.workspace_manager.get_active_workspace_index();
 
-    _showWorkspaceOSDOnMonitor(monitor, current_workspace_index) {
-        let osd = new ModalDialog.InfoOSD();
-        osd.actor.add_style_class_name('workspace-osd');
-        this._workspace_osd_array.push(osd);
-        osd.addText(Main.getWorkspaceName(current_workspace_index));
-        osd.show(monitor);
-
-        osd.actor.ease({
-            z_position: -.0001,
-            duration: WORKSPACE_OSD_TIMEOUT * EASING_MULTIPLIER,
-            onComplete: () => this._hideWorkspaceOSD()
-        })
-    }
-
-    _hideWorkspaceOSD(now = false) {
-        for (let i = 0; i < this._workspace_osd_array.length; i++) {
-            let osd = this._workspace_osd_array[i];
-            if (now) {
-                osd.actor.remove_all_transitions();
-                osd.destroy();
-                continue;
-            }
-            if (osd != null) {
-                osd.actor.opacity = 255;
-                osd.actor.ease({
-                    opacity: 0,
-                    duration: WORKSPACE_OSD_TIMEOUT * EASING_MULTIPLIER,
-                    mode: Clutter.AnimationMode.LINEAR,
-                    onStopped: () => osd.destroy()
+        for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
+            if (this._workspaceOsds[i] == null) {
+                let osd = new WorkspaceOsd.WorkspaceOsd(i);
+                this._workspaceOsds.push(osd);
+                osd.connect('destroy', () => {
+                    this._workspaceOsds[i] = null;
+                    this._workspaceOsds.splice(i, 1);
                 });
             }
+
+            let text = Main.getWorkspaceName(currentWorkspaceIndex);
+            this._workspaceOsds[i].display(currentWorkspaceIndex, text);
         }
-        this._workspace_osd_array = [];
     }
 
     _showWindowMenu(cinnamonwm, window, menu, rect) {

@@ -1,0 +1,161 @@
+// -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
+/* exported WorkspaceSwitcherPopup */
+
+const { Clutter, Gio, GLib, GObject, St } = imports.gi;
+
+const Layout = imports.ui.layout;
+const Main = imports.ui.main;
+
+var ANIMATION_TIME = 100;
+var DISPLAY_TIMEOUT = 600;
+
+
+var WorkspaceOsd = GObject.registerClass(
+class WorkspaceOsd extends Clutter.Actor {
+    _init(monitorIndex) {
+        super._init({
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.END,
+        });
+
+        this._monitorIndex = monitorIndex;
+
+        this.set_offscreen_redirect(Clutter.OffscreenRedirect.ALWAYS);
+
+        Main.uiGroup.add_actor(this);
+
+        this._timeoutId = 0;
+
+        this._vbox = new St.BoxLayout({
+            style_class: 'workspace-osd',
+            important: true,
+            vertical: true,
+        });
+        this.add_child(this._vbox);
+
+        this._label = new St.Label({
+            text: "Workspace 1",
+        });
+        this._vbox.add_child(this._label);
+
+        this._list = new St.BoxLayout({
+            style_class: 'workspace-osd-indicator-box',
+        });
+        this._vbox.add_child(this._list);
+
+        this._redisplay();
+
+        this.hide();
+
+        let workspaceManager = global.workspace_manager;
+        this._workspaceManagerSignals = [];
+        this._workspaceManagerSignals.push(workspaceManager.connect('workspace-added',
+                                                                    this._redisplay.bind(this)));
+        this._workspaceManagerSignals.push(workspaceManager.connect('workspace-removed',
+                                                                    this._redisplay.bind(this)));
+
+        this.connect('destroy', this._onDestroy.bind(this));
+    }
+
+    _redisplay() {
+        let workspaceManager = global.workspace_manager;
+
+        this._list.destroy_all_children();
+
+        for (let i = 0; i < workspaceManager.n_workspaces; i++) {
+            const indicator = new St.Bin({
+                style_class: 'workspace-osd-indicator',
+            });
+
+            if (i === this._activeWorkspaceIndex)
+                indicator.add_style_pseudo_class('active');
+
+            this._list.add_actor(indicator);
+        }
+    }
+
+    _setPosition() {
+        let monitor = Main.layoutManager.monitors[this._monitorIndex];
+        if (monitor) {
+            let height = this.get_height();
+            let width = this.get_width();
+
+            this.translation_y = Math.round((monitor.height + monitor.y) - (height + 75));
+            this.translation_x = Math.round(((monitor.width / 2) + monitor.x) - (width / 2));
+        }
+    }
+
+    display(activeWorkspaceIndex, workspaceName) {
+        this._activeWorkspaceIndex = activeWorkspaceIndex;
+        this._label.text = workspaceName;
+
+        this._redisplay();
+        if (this._timeoutId != 0)
+            GLib.source_remove(this._timeoutId);
+        this._timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, DISPLAY_TIMEOUT, this._onTimeout.bind(this));
+        GLib.Source.set_name_by_id(this._timeoutId, '[cinnamon] this._onTimeout');
+
+        const duration = this.visible ? 0 : ANIMATION_TIME;
+        this.show();
+        this._setPosition();
+        this.opacity = 0;
+        this.ease({
+            opacity: 255,
+            duration,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+    }
+
+    _onTimeout() {
+        GLib.source_remove(this._timeoutId);
+        this._timeoutId = 0;
+        this.ease({
+            opacity: 0.0,
+            duration: ANIMATION_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => this.destroy(),
+        });
+        return GLib.SOURCE_REMOVE;
+    }
+
+    _onDestroy() {
+        if (this._timeoutId)
+            GLib.source_remove(this._timeoutId);
+        this._timeoutId = 0;
+
+        let workspaceManager = global.workspace_manager;
+        for (let i = 0; i < this._workspaceManagerSignals.length; i++)
+            workspaceManager.disconnect(this._workspaceManagerSignals[i]);
+
+        this._workspaceManagerSignals = [];
+    }
+});
+
+// var WorkspaceOsdManager = class {
+//     constructor() {
+//         this._osdWindows = [];
+
+//         Main.layoutManager.connect('monitors-changed', this._layoutChanged.bind(this));
+//         this._osdSettings = new Gio.Settings({schema_id: 'org.cinnamon.muffin'});
+//         this._osdSettings.connect('changed::workspaces-only-on-primary', this._layoutChanged.bind(this));
+//         global.settings.connect('changed::workspace-osd-visible', this._layoutChanged.bind(this));
+
+//         this._layoutChanged();
+//     }
+
+//     _layoutChanged() {
+//         for (let i = 0; i < this._osdWindows.length; i++) {
+//             this._osdWindows[i].destroy();
+//             this._osdWindows[i] = null;
+//         }
+
+//         if (global.settings.get_boolean('workspace-osd-visible')) {
+//             for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
+//                 if (this._osdWindows[i] === undefined)
+//                     this._osdWindows[i] = new WorkspaceOsd(i);
+//             }
+//         }
+//     }
+// }
