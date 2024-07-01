@@ -9,6 +9,7 @@ const Meta = imports.gi.Meta;
 const St = imports.gi.St;
 
 const BarLevel = imports.ui.barLevel;
+const Layout = imports.ui.layout;
 const Main = imports.ui.main;
 
 const LEVEL_ANIMATION_TIME = 100;
@@ -41,6 +42,8 @@ class OsdWindow extends Clutter.Actor {
         });
 
         this._monitorIndex = monitorIndex;
+        let constraint = new Layout.MonitorConstraint({ index: monitorIndex });
+        this.add_constraint(constraint);
 
         this._hbox = new St.BoxLayout({
             style_class: 'osd-window',
@@ -100,17 +103,6 @@ class OsdWindow extends Clutter.Actor {
         this._level.maximum_value = maxLevel;
     }
 
-    _setPosition() {
-        let monitor = Main.layoutManager.monitors[this._monitorIndex];
-        if (monitor) {
-            let height = this.get_height();
-            let width = this.get_width();
-
-            this.translation_y = Math.round((monitor.height + monitor.y) - (height + 75));
-            this.translation_x = Math.round(((monitor.width / 2) + monitor.x) - (width / 2));
-        }
-    }
-
     show() {
         if (!this._icon.gicon)
             return;
@@ -118,7 +110,6 @@ class OsdWindow extends Clutter.Actor {
         if (!this.visible) {
             Meta.disable_unredirect_for_display(global.display);
             super.show();
-            this._setPosition();
             this.opacity = 0;
             this.get_parent().set_child_above_sibling(this, null);
 
