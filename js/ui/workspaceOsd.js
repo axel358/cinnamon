@@ -1,5 +1,4 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
-/* exported WorkspaceSwitcherPopup */
 
 const { Clutter, Gio, GLib, GObject, St } = imports.gi;
 
@@ -23,6 +22,9 @@ class WorkspaceOsd extends Clutter.Actor {
         this._monitorIndex = monitorIndex;
 
         this.set_offscreen_redirect(Clutter.OffscreenRedirect.ALWAYS);
+
+        let constraint = new Layout.MonitorConstraint({ index: monitorIndex });
+        this.add_constraint(constraint);
 
         Main.uiGroup.add_actor(this);
 
@@ -76,17 +78,6 @@ class WorkspaceOsd extends Clutter.Actor {
         }
     }
 
-    _setPosition() {
-        let monitor = Main.layoutManager.monitors[this._monitorIndex];
-        if (monitor) {
-            let height = this.get_height();
-            let width = this.get_width();
-
-            this.translation_y = Math.round((monitor.height + monitor.y) - (height + 75));
-            this.translation_x = Math.round(((monitor.width / 2) + monitor.x) - (width / 2));
-        }
-    }
-
     display(activeWorkspaceIndex, workspaceName) {
         this._activeWorkspaceIndex = activeWorkspaceIndex;
         this._label.text = workspaceName;
@@ -99,7 +90,6 @@ class WorkspaceOsd extends Clutter.Actor {
 
         const duration = this.visible ? 0 : ANIMATION_TIME;
         this.show();
-        this._setPosition();
         this.opacity = 0;
         this.ease({
             opacity: 255,
@@ -132,30 +122,3 @@ class WorkspaceOsd extends Clutter.Actor {
         this._workspaceManagerSignals = [];
     }
 });
-
-// var WorkspaceOsdManager = class {
-//     constructor() {
-//         this._osdWindows = [];
-
-//         Main.layoutManager.connect('monitors-changed', this._layoutChanged.bind(this));
-//         this._osdSettings = new Gio.Settings({schema_id: 'org.cinnamon.muffin'});
-//         this._osdSettings.connect('changed::workspaces-only-on-primary', this._layoutChanged.bind(this));
-//         global.settings.connect('changed::workspace-osd-visible', this._layoutChanged.bind(this));
-
-//         this._layoutChanged();
-//     }
-
-//     _layoutChanged() {
-//         for (let i = 0; i < this._osdWindows.length; i++) {
-//             this._osdWindows[i].destroy();
-//             this._osdWindows[i] = null;
-//         }
-
-//         if (global.settings.get_boolean('workspace-osd-visible')) {
-//             for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
-//                 if (this._osdWindows[i] === undefined)
-//                     this._osdWindows[i] = new WorkspaceOsd(i);
-//             }
-//         }
-//     }
-// }

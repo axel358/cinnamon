@@ -18,6 +18,7 @@ $ws_dot_inactive: $ws_indicator_height / 6;
 
 .osd-window {
   @extend %heading;
+  margin-bottom: 4em;
   background-color: transparentize($bg_color, 0.05);
   border: 1px solid transparentize($outer_borders_color, 0.05);
   border-radius: 9999px;
@@ -52,6 +53,7 @@ $ws_dot_inactive: $ws_indicator_height / 6;
 
 .workspace-osd {
   @extend %heading;
+  margin-bottom: 4em;
   background-color: transparentize($bg_color, 0.05);
   border: 1px solid transparentize($outer_borders_color, 0.05);
   border-radius: 9999px;
