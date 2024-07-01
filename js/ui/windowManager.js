@@ -1307,21 +1307,31 @@ var WindowManager = class WindowManager {
     }
 
     showWorkspaceOSD() {
-        let currentWorkspaceIndex = global.workspace_manager.get_active_workspace_index();
-
-        for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
-            if (this._workspaceOsds[i] == null) {
-                let osd = new WorkspaceOsd.WorkspaceOsd(i);
-                this._workspaceOsds.push(osd);
-                osd.connect('destroy', () => {
-                    this._workspaceOsds[i] = null;
-                    this._workspaceOsds.splice(i, 1);
-                });
+        if (global.settings.get_boolean('workspace-osd-visible')) {
+            let currentWorkspaceIndex = global.workspace_manager.get_active_workspace_index();
+            if (this.wm_settings.get_boolean('workspaces-only-on-primary')) {
+                this._showWorkspaceOSDForMonitor(Main.layoutManager.primaryMonitor.index, currentWorkspaceIndex);
             }
-
-            let text = Main.getWorkspaceName(currentWorkspaceIndex);
-            this._workspaceOsds[i].display(currentWorkspaceIndex, text);
+            else {
+                for (let i = 0; i < Main.layoutManager.monitors.length; i++) {
+                    this._showWorkspaceOSDForMonitor(i, currentWorkspaceIndex);
+                }
+            }
         }
+    }
+
+    _showWorkspaceOSDForMonitor(index, currentWorkspaceIndex) {
+        if (this._workspaceOsds[index] == null) {
+            let osd = new WorkspaceOsd.WorkspaceOsd(index);
+            this._workspaceOsds.push(osd);
+            osd.connect('destroy', () => {
+                this._workspaceOsds[index] = null;
+                this._workspaceOsds.splice(index, 1);
+            });
+        }
+
+        let text = Main.getWorkspaceName(currentWorkspaceIndex);
+        this._workspaceOsds[index].display(currentWorkspaceIndex, text);
     }
 
     _showWindowMenu(cinnamonwm, window, menu, rect) {
