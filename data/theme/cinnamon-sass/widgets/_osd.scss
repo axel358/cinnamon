@@ -6,23 +6,14 @@ $ws_indicator_height: 32px;
 $ws_dot_active: $ws_indicator_height / 3;
 $ws_dot_inactive: $ws_indicator_height / 6;
 
-%osd_base {
-  background-color: $base_color;
-  border: 1px solid $outer_borders_color;
-  border-radius: $base_border_radius;
-  box-shadow: 0 2px 4px 2px $shadow_color;
-  padding: $base_padding * 4;
-}
-
 // media keys osd
 
 .osd-window {
   @extend %heading;
+  @extend %osd_base;
+
   margin-bottom: 4em;
-  background-color: transparentize($bg_color, 0.05);
-  border: 1px solid transparentize($outer_borders_color, 0.05);
   border-radius: 9999px;
-  text-align: center;
   font-weight: bold;
 
   padding: $base_padding * 2 $base_padding * 4;
@@ -53,11 +44,10 @@ $ws_dot_inactive: $ws_indicator_height / 6;
 
 .workspace-osd {
   @extend %heading;
+  @extend %osd_base;
+
   margin-bottom: 4em;
-  background-color: transparentize($bg_color, 0.05);
-  border: 1px solid transparentize($outer_borders_color, 0.05);
   border-radius: 9999px;
-  text-align: center;
   font-weight: bold;
   padding: $base_padding $base_padding * 6 0 $base_padding * 6;
 

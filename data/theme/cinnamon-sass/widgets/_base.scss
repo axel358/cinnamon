@@ -16,12 +16,9 @@
 // looking glass dialog
 
 #LookingGlassDialog {
-  padding: $base_padding * 2;
+  @extend %osd_base;
+
   spacing: $base_margin;
-  border: 1px solid $outer_borders_color;
-  border-radius: $base_border_radius;
-  background-color: $base_color;
-  box-shadow: 0 0 6px 0 $shadow_color;
 }
 
 // magnifier
@@ -110,12 +107,10 @@ StScrollBar {
 }
 
 #Tooltip {
-  border: 1px solid $outer_borders_color;
-  border-radius: $base_border_radius;
-  background-color: $lighter_base_color;
+  @extend %osd_base;
+
   padding: $base_padding * 2;
   margin: $base_margin;
-  text-align: center;
 }
 
 // user avatar
