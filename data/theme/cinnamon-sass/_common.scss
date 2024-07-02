@@ -172,3 +172,11 @@ stage {
   -slider-border-width: 1px;
   -slider-handle-radius: 0.5em;
 }
+
+%osd_base {
+  background-color: transparentize($bg_color, 0.05);
+  border: 1px solid transparentize($outer_borders_color, 0.05);
+  border-radius: $base_border_radius;
+  text-align: center;
+  padding: $base_padding * 4;
+}
