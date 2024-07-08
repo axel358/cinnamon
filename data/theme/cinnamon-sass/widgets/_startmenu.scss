@@ -1,4 +1,5 @@
 $menu_outer_padding: 9px;
+$menu_outer_border_radius: $base_border_radius * 1.25;
 
 %start_menu_button {
   padding: $base_padding;
@@ -10,37 +11,77 @@ $menu_outer_padding: 9px;
 .menu {
 
   // this can be used to color the entire menu background but we aren't using it here
-  &-background {}
+  &-background {
+    // using this to override the default padding on menus so widgets can span edge
+    // to edge. The side effect is that some of our internal container widgets
+    // will need to have a border-radius added to them or the corners will poke out
+    // the edges of the menu.
+    .popup-menu-content { padding: 0; }
+  }
 
   &-main-box { padding: 0; }
 
-  &-favorites {
+  &-sidebar {
+    background-color: lighten($base_color, 5%);
+    border-radius: $menu_outer_border_radius 0 0 $menu_outer_border_radius;
+    border-right-width: 1px;
+    border-color: $borders_color;
 
-    &-box {
-      padding: $base_padding * 2;
-      background-color: $lighter_base_color;
-      border: 1px solid $outer_borders_color;
-      border-radius: $base_border_radius;
+    .sidebar-user-box {
+      padding-top: $menu_outer_padding;
+      padding-bottom: $menu_outer_padding / 2;
     }
 
-    &-button {
+    StScrollBar StButton#vhandle {
+      // add some extra spacing at the top to align this with the separator
+      margin-top: $menu_outer_padding;
+    }
+
+    .menu-favorites-button {
       @extend %start_menu_button;
+
+      padding: 3px $base_padding 3px $base_padding;
+      margin: 0 $menu_outer_padding 0 $menu_outer_padding;
 
       &:hover {
         background-color: $lightest_base_color;
-        border-color: $outer_borders_color;
+        border: $outer_borders_color;
       }
+    }
+  }
+
+  &-top-bar-box {
+    padding: $menu_outer_padding;
+    border-radius: 0 $menu_outer_border_radius 0 0;
+    border-bottom-width: 1px;
+    border-color: $borders_color;
+  }
+
+  &-system-buttons-box {
+    spacing: 12px;
+
+    .system-button {
+      padding: $base_padding * 1.5;
+      border: 1px solid $outer_borders_color;
+      border-radius: 9999px;
+      background-color: lighten($bg_color, 10%);
+
+      &:hover { background-color: lighten($bg_color, 15%); }
     }
   }
 
   &-categories-box { padding: $menu_outer_padding; }
   &-applications-box { padding: $menu_outer_padding; }
-  // additional classes available for styling
-  &-applications-inner-box {}
-  &-applications-outer-box {}
 
   &-application-button {
     @extend %start_menu_button;
+
+    &-label { padding: 0 }
+    &-description {
+      @extend %caption;
+
+      color: $lighter_text_color;
+    }
 
     &:highlighted { font-weight: bold; }
 
@@ -56,6 +97,8 @@ $menu_outer_padding: 9px;
 
   &-category-button {
     @extend %start_menu_button;
+
+    &-label { padding: 0 }
 
     &:hover {
       background-color: $lighter_base_color;
@@ -80,27 +123,16 @@ $menu_outer_padding: 9px;
 
   &-context-menu {}
 
-  &-selected-app {
-
-    &-box {
-      padding: $base_padding $base_padding * 2 0 $base_padding * 2;
-      text-align: right;
-      height: 2.2 em;
-    }
-
-    &-title { font-weight: bold; }
-    &-description { max-width: 150px; }
+  &-search-box {
+    border-radius: 0 0 $menu_outer_border_radius 0;
+    border-top-width: 1px;
+    border-color: $borders_color;
   }
-
-  &-top-box {}
-  &-search-box {}
-  &-systembuttons-box {}
 }
 
 #menu-search-entry {
   @extend %entry;
   margin: $menu_outer_padding;
-  margin-top: 0;
 }
 
 .menu-search-entry-icon {
