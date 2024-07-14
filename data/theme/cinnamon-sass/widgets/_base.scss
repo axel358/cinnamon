@@ -118,8 +118,13 @@ StScrollBar {
 // user avatar
 
 .user-icon {
-  border: 1px solid transparentize($fg_color, 0.5);
-  border-radius: 99px;
+  color: $fg_color;
+  border: none;
+
+  &.user-avatar {
+    border: 1px solid transparentize($fg_color, 0.5);
+    border-radius: 99px;
+  }
 }
 
 .user-widget-label {
