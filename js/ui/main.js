@@ -430,7 +430,7 @@ function start() {
     _initUserSession();
     screenRecorder = new ScreenRecorder.ScreenRecorder();
 
-    if (Meta.is_wayland_compositor()) {
+    if (true) {
         PolkitAuthenticationAgent.init();
     }
 
@@ -1223,6 +1223,8 @@ function pushModal(actor, timestamp, options) {
     global.set_stage_input_mode(Cinnamon.StageInputMode.FULLSCREEN);
 
     modalCount += 1;
+    ////////////////////////////////
+    global.log(St.describe_actor(actor));
     let actorDestroyId = actor.connect('destroy', function() {
         let index = _findModal(actor);
         if (index >= 0)
