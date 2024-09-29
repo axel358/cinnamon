@@ -474,7 +474,7 @@ NotificationDaemon.prototype = {
             } else if (hints['image-path']) {
                 image = St.TextureCache.get_default().load_uri_async(GLib.filename_to_uri(hints['image-path'], null),
                                                                      notification.IMAGE_SIZE,
-                                                                     notification.IMAGE_SIZE);
+                                                                     -1);
             }
             notification.setImage(image);
         } else {

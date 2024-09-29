@@ -213,7 +213,7 @@ URLHighlighter.prototype = {
 
 /**
  * #Notification:
- * @short_description: A shell notification.
+ * @short_description: A Cinnamon notification.
  * @source (object): The notification's Source
  * @title (string): The title/summary text
  * @body (string): Optional - body text
@@ -267,32 +267,52 @@ var Notification = class Notification {
         this.actor.connect('clicked', () => this._onClicked());
         this.actor.connect('destroy', () => this._onDestroy());
 
-        this._table = new St.Table({
-            name: 'notification',
-            reactive: true
+        // this._table = new St.Table({
+        //     name: 'notification',
+        //     reactive: true
+        // });
+        this._notificationLayout = new St.BoxLayout({
+            style_class: 'notification',
+            vertical: true,
         });
-        this.actor.set_child(this._table);
+        // this.actor.set_child(this._table);
+        this.actor.set_child(this._notificationLayout);
 
         this._buttonFocusManager = St.FocusManager.get_for_stage(global.stage);
+
+        this._bannerLayout = new St.BoxLayout({
+            style_class: "notification-banner",
+        });
+        this._notificationLayout.add_actor(this._bannerLayout);
+
+        this._iconBin = new St.Bin();
+        this._bannerLayout.add_actor(this._iconBin);
 
         // the banner box is now just a simple vbox.
         // The first line should have the time, and the second the title.
         // Time only shown inside message tray.
         this._bannerBox = new St.BoxLayout({
             vertical: true,
-            style: "spacing: 4px"
+            style_class: 'notification-title-layout',
+            y_align: Clutter.ActorAlign.CENTER,
         });
-        this._table.add(this._bannerBox, {
-            row: 0,
-            col: 1,
-            col_span: 2,
-            x_expand: false,
-            y_expand: false,
-            y_fill: false
-        });
+        // this._table.add(this._bannerBox, {
+        //     row: 0,
+        //     col: 1,
+        //     col_span: 2,
+        //     x_expand: false,
+        //     y_expand: false,
+        //     y_fill: false
+        // });
+        this._bannerLayout.add_actor(this._bannerBox);
 
-        this._timeLabel = new St.Label({ show_on_set_parent: false });
-        this._titleLabel = new St.Label();
+        this._timeLabel = new St.Label({
+            show_on_set_parent: false,
+            style_class: 'notification-timestamp'
+        });
+        this._titleLabel = new St.Label({
+            style_class: 'notification-title',
+        });
         this._titleLabel.clutter_text.line_wrap = true;
         this._titleLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
         this._bannerBox.add_actor(this._timeLabel);
@@ -301,12 +321,15 @@ var Notification = class Notification {
         // This is an empty cell that overlaps with this._bannerBox cell to ensure
         // that this._bannerBox cell expands horizontally, while not forcing the
         // this._imageBin that is also in col: 2 to expand horizontally.
-        this._table.add(new St.Bin(), {
-            row: 0,
-            col: 2,
-            y_expand: false,
-            y_fill: false
-        });
+        // this._table.add(new St.Bin(), {
+        //     row: 0,
+        //     col: 2,
+        //     y_expand: false,
+        //     y_fill: false
+        // });
+
+        // spacer
+        this._bannerLayout.add_child(new Clutter.Actor({ x_expand: true }));
 
         // notification dismiss button
         let icon = new St.Icon({
@@ -314,17 +337,30 @@ var Notification = class Notification {
             icon_type: St.IconType.SYMBOLIC,
             icon_size: 16
         });
-        let closeButton = new St.Button({ child: icon, opacity: 128 });
+        let closeButton = new St.Button({
+            style_class: 'notification-close-button',
+            child: icon,
+            opacity: 128,
+            y_fill: false,
+            y_expand: false,
+            y_align: St.Align.START,
+        });
         closeButton.connect('clicked', Lang.bind(this, this.destroy));
         closeButton.connect('notify::hover', function () { closeButton.opacity = closeButton.hover ? 255 : 128; });
-        this._table.add(closeButton, {
-            row: 0,
-            col: 3,
-            x_expand: false,
-            y_expand: false,
-            y_fill: false,
-            y_align: St.Align.START
+        // this._table.add(closeButton, {
+        //     row: 0,
+        //     col: 3,
+        //     x_expand: false,
+        //     y_expand: false,
+        //     y_fill: false,
+        //     y_align: St.Align.START
+        // });
+        this._bannerLayout.add_actor(closeButton);
+
+        this._bodyLayout = new St.BoxLayout({
+            style_class: 'notification-body',
         });
+        this._notificationLayout.add_actor(this._bodyLayout);
 
         // set icon, title, body
         this.update(title, body, params);
@@ -361,14 +397,15 @@ var Notification = class Notification {
 
         if (!this._icon) {
             this._icon = params.icon || this.source.createNotificationIcon();
-            this._table.add(this._icon, {
-                row: 0,
-                col: 0,
-                x_expand: false,
-                y_expand: false,
-                y_fill: false,
-                y_align: St.Align.START
-            });
+            this._iconBin.set_child(this._icon);
+            // this._table.add(this._icon, {
+            //     row: 0,
+            //     col: 0,
+            //     x_expand: false,
+            //     y_expand: false,
+            //     y_fill: false,
+            //     y_align: St.Align.START
+            // });
         }
 
         // title: strip newlines, escape or validate markup, add bold markup
@@ -377,7 +414,8 @@ var Notification = class Notification {
         } else {
             this.title = "";
         }
-        this._titleLabel.clutter_text.set_markup('<b>' + this.title + '</b>');
+        this._titleLabel.set_text(this.title);
+        // this._titleLabel.clutter_text.set_markup('<b>' + this.title + '</b>');
 
         this._timeLabel.clutter_text.set_markup(this._timestamp.toLocaleTimeString());
         this._timeLabel.hide();
@@ -411,13 +449,15 @@ var Notification = class Notification {
                     enable_mouse_scrolling: false/*,
                                                        style_class: 'vfade'*/ });
 
-                this._table.add(this._scrollArea, {
-                    row: 1,
-                    col: 2
-                });
+                // this._table.add(this._scrollArea, {
+                //     row: 1,
+                //     col: 2
+                // });
+
+                this._bodyLayout.add_actor(this._scrollArea);
 
                 let content = new St.BoxLayout({
-                    name: 'notification-body',
+                    // name: 'notification-body',
                     vertical: true
                 });
                 this._scrollArea.add_actor(content);
@@ -461,27 +501,27 @@ var Notification = class Notification {
 
     _updateLayout() {
         if (this._imageBin || this._scrollArea || this._actionArea) {
-            this._table.add_style_class_name('multi-line-notification');
+            this._notificationLayout.add_style_class_name('multi-line-notification');
         } else {
-            this._table.remove_style_class_name('multi-line-notification');
+            this._notificationLayout.remove_style_class_name('multi-line-notification');
         }
 
         if (this._imageBin) {
-            this._table.add_style_class_name('notification-with-image');
+            this._notificationLayout.add_style_class_name('notification-with-image');
         } else {
-            this._table.remove_style_class_name('notification-with-image');
+            this._notificationLayout.remove_style_class_name('notification-with-image');
         }
 
-        if (this._scrollArea)
-            this._table.child_set(this._scrollArea, {
-                col: this._imageBin ? 2 : 1,
-                col_span: this._imageBin ? 2 : 3
-            });
-        if (this._actionArea)
-            this._table.child_set(this._actionArea, {
-                col: this._imageBin ? 2 : 1,
-                col_span: this._imageBin ? 2 : 3
-            });
+        // if (this._scrollArea)
+        //     this._table.child_set(this._scrollArea, {
+        //         col: this._imageBin ? 2 : 1,
+        //         col_span: this._imageBin ? 2 : 3
+        //     });
+        // if (this._actionArea)
+        //     this._table.child_set(this._actionArea, {
+        //         col: this._imageBin ? 2 : 1,
+        //         col_span: this._imageBin ? 2 : 3
+        //     });
     }
 
     setImage(image) {
@@ -491,17 +531,22 @@ var Notification = class Notification {
             return;
         this._imageBin = new St.Bin({
             child: image,
-            opacity: NOTIFICATION_IMAGE_OPACITY
-        });
-        this._table.add(this._imageBin, {
-            row: 1,
-            col: 1,
-            row_span: 2,
-            x_expand: false,
+            // opacity: NOTIFICATION_IMAGE_OPACITY
+            y_align: St.Align.START,
             y_expand: false,
-            x_fill: false,
-            y_fill: false
+            y_fill: false,
         });
+        // this._table.add(this._imageBin, {
+        //     row: 1,
+        //     col: 1,
+        //     row_span: 2,
+        //     x_expand: false,
+        //     y_expand: false,
+        //     x_fill: false,
+        //     y_fill: false
+        // });
+
+        this._bodyLayout.insert_actor(this._imageBin, 0);
         this._updateLayout();
     }
 
@@ -527,20 +572,30 @@ var Notification = class Notification {
      */
     addButton(id, label) {
         if (!this._actionArea) {
-            this._actionArea = new St.BoxLayout({ name: 'notification-actions' });
-            this._table.add(this._actionArea, {
-                row: 2,
-                col: 1,
-                col_span: 3,
-                x_expand: true,
-                y_expand: false,
-                x_fill: true,
-                y_fill: false,
-                x_align: St.Align.START
+            this._actionArea = new St.Widget({
+                layout_manager: new Clutter.BoxLayout({
+                    homogeneous: true,
+                    spacing: 12,
+                }),
             });
+            // this._actionArea = new St.BoxLayout({ name: 'notification-actions' });
+            // this._table.add(this._actionArea, {
+            //     row: 2,
+            //     col: 1,
+            //     col_span: 3,
+            //     x_expand: true,
+            //     y_expand: false,
+            //     x_fill: true,
+            //     y_fill: false,
+            //     x_align: St.Align.MIDDLE
+            // });
+            this._notificationLayout.add_actor(this._actionArea);
         }
 
-        let button = new St.Button({ can_focus: true });
+        let button = new St.Button({
+            can_focus: true,
+            x_expand: true,
+        });
 
         if (this._useActionIcons
             && id.endsWith("-symbolic")
@@ -555,7 +610,7 @@ var Notification = class Notification {
         if (this._actionArea.get_n_children() > 0)
             this._buttonFocusManager.remove_group(this._actionArea);
 
-        this._actionArea.add(button);
+        this._actionArea.add_actor(button);
         this._buttonFocusManager.add_group(this._actionArea);
         button.connect('clicked', Lang.bind(this, this._onActionInvoked, id));
         this._updateLayout();
@@ -988,8 +1043,8 @@ MessageTray.prototype = {
             this._notificationBin.y = this._monitor.y + topGap; // Notifications appear from here (for the animation)
         }
 
-        let margin = this._notification._table.get_theme_node().get_length('margin-from-right-edge-of-screen');
-        this._notificationBin.x = this._monitor.x + this._monitor.width - this._notification._table.width - margin - rightGap;
+        let margin = this._notification._notificationLayout.get_theme_node().get_length('margin-from-right-edge-of-screen');
+        this._notificationBin.x = this._monitor.x + this._monitor.width - this._notification._notificationLayout.width - margin - rightGap;
         if (!this._notification.silent || this._notification.urgency >= Urgency.HIGH) {
             Main.soundManager.play('notification');
         }
