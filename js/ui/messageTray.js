@@ -6,7 +6,6 @@ const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
 const Atk = imports.gi.Atk;
 const Lang = imports.lang;
-const Mainloop = imports.mainloop;
 const Pango = imports.gi.Pango;
 const Cinnamon = imports.gi.Cinnamon;
 const Signals = imports.signals;
@@ -20,13 +19,13 @@ const Tweener = imports.ui.tweener;
 const Util = imports.misc.util;
 const AppletManager = imports.ui.appletManager;
 
-var ANIMATION_TIME = 0.2;
-var NOTIFICATION_CRITICAL_TIMEOUT_WITH_APPLET = 10;
+var ANIMATION_TIME = 200;
+var NOTIFICATION_CRITICAL_TIMEOUT_WITH_APPLET = 10000;
 var SUMMARY_TIMEOUT = 1;
 var LONGER_SUMMARY_TIMEOUT = 4;
 
-var HIDE_TIMEOUT = 0.2;
-var LONGER_HIDE_TIMEOUT = 0.6;
+var HIDE_TIMEOUT = 200;
+var LONGER_HIDE_TIMEOUT = 600;
 
 const NOTIFICATION_IMAGE_SIZE = 125;
 const NOTIFICATION_IMAGE_OPACITY = 230; // 0 - 255
@@ -80,17 +79,13 @@ function _fixMarkup(text, allowMarkup) {
     return GLib.markup_escape_text(text, -1);
 }
 
-function URLHighlighter(text, lineWrap, allowMarkup) {
-    this._init(text, lineWrap, allowMarkup);
-}
-
-URLHighlighter.prototype = {
-    _init: function (text, lineWrap, allowMarkup) {
+var URLHighlighter = class URLHighlighter {
+    constructor(text, lineWrap, allowMarkup) {
         if (!text)
             text = '';
         this.actor = new St.Label({ reactive: true, style_class: 'url-highlighter' });
         this._linkColor = '#ccccff';
-        this.actor.connect('style-changed', Lang.bind(this, function () {
+        this.actor.connect('style-changed', () => {
             let [hasColor, color] = this.actor.get_theme_node().lookup_color('link-color', false);
             if (hasColor) {
                 let linkColor = color.to_string().substr(0, 7);
@@ -99,7 +94,7 @@ URLHighlighter.prototype = {
                     this._highlightUrls();
                 }
             }
-        }));
+        });
         if (lineWrap) {
             this.actor.clutter_text.line_wrap = true;
             this.actor.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
@@ -107,7 +102,7 @@ URLHighlighter.prototype = {
         }
 
         this.setMarkup(text, allowMarkup);
-        this.actor.connect('button-press-event', Lang.bind(this, function (actor, event) {
+        this.actor.connect('button-press-event', (actor, event) => {
             // Don't try to URL highlight when invisible.
             // The MessageTray doesn't actually hide us, so
             // we need to check for paint opacities as well.
@@ -118,8 +113,8 @@ URLHighlighter.prototype = {
             // a pointer grab, which would block our button-release-event
             // handler, if an URL is clicked
             return this._findUrlAtPos(event) != -1;
-        }));
-        this.actor.connect('button-release-event', Lang.bind(this, function (actor, event) {
+        });
+        this.actor.connect('button-release-event', (actor, event) => {
             if (!actor.visible || actor.get_paint_opacity() == 0)
                 return false;
 
@@ -138,8 +133,8 @@ URLHighlighter.prototype = {
                 }
             }
             return false;
-        }));
-        this.actor.connect('motion-event', Lang.bind(this, function (actor, event) {
+        });
+        this.actor.connect('motion-event', (actor, event) => {
             if (!actor.visible || actor.get_paint_opacity() == 0)
                 return false;
 
@@ -152,8 +147,8 @@ URLHighlighter.prototype = {
                 this._cursorChanged = false;
             }
             return false;
-        }));
-        this.actor.connect('leave-event', Lang.bind(this, function () {
+        });
+        this.actor.connect('leave-event', () => {
             if (!this.actor.visible || this.actor.get_paint_opacity() == 0)
                 return;
 
@@ -161,10 +156,10 @@ URLHighlighter.prototype = {
                 this._cursorChanged = false;
                 global.unset_cursor();
             }
-        }));
-    },
+        });
+    }
 
-    setMarkup: function (text, allowMarkup) {
+    setMarkup(text, allowMarkup) {
         text = text ? _fixMarkup(text, allowMarkup) : '';
         this._text = text;
 
@@ -172,9 +167,9 @@ URLHighlighter.prototype = {
         /* clutter_text.text contain text without markup */
         this._urls = Util.findUrls(this.actor.clutter_text.text);
         this._highlightUrls();
-    },
+    }
 
-    _highlightUrls: function () {
+    _highlightUrls() {
         // text here contain markup
         let urls = Util.findUrls(this._text);
         let markup = '';
@@ -187,9 +182,9 @@ URLHighlighter.prototype = {
         }
         markup += this._text.substr(pos);
         this.actor.clutter_text.set_markup(markup);
-    },
+    }
 
-    _findUrlAtPos: function (event) {
+    _findUrlAtPos(event) {
         if (!this._urls.length)
             return -1;
 
@@ -254,48 +249,151 @@ var Notification = class Notification {
         this._destroyed = false;
         this._useActionIcons = false;
         this._titleDirection = St.TextDirection.NONE;
-        this._scrollArea = null;
+        // this._scrollArea = null;
         this._actionArea = null;
-        this._imageBin = null;
+        // this._imageBin = null;
         this._timestamp = new Date();
         this._inNotificationBin = false;
 
         source.connect('destroy', (source, reason) => { this.destroy(reason) });
 
-        this.actor = new St.Button({ accessible_role: Atk.Role.NOTIFICATION });
+        this.actor = new St.Button({
+            style_class: 'message',
+            accessible_role: Atk.Role.NOTIFICATION,
+            x_fill: true,
+        });
         this.actor._parent_container = null;
         this.actor.connect('clicked', () => this._onClicked());
         this.actor.connect('destroy', () => this._onDestroy());
+
+        let vbox = new St.BoxLayout({
+            vertical: true,
+            x_expand: true,
+        });
+        this.actor.set_child(vbox);
+
+
+        // Header Layout
+        this._header = new St.BoxLayout({
+            style_class: 'message-header',
+            x_expand: true,
+        });
+
+
+        // global.log("Setting the icon in notif init");
+        // global.log(this.gicon);
+        this._sourceIcon = new St.Icon({
+            style_class: 'message-source-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+            // gicon: this.gicon,
+        });
+        this._header.add_child(this._sourceIcon);
+
+        const headerContent = new St.BoxLayout({
+            style_class: 'message-header-content',
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+        });
+        this._header.add_child(headerContent);
+
+        this.closeButton = new St.Button({
+            style_class: 'message-close-button',
+            child: new St.Icon({ icon_name: 'window-close-symbolic' }),
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._header.add_child(this.closeButton);
+
+        const sourceTitle = new St.Label({
+            style_class: 'message-source-title',
+            y_align: Clutter.ActorAlign.END,
+            text: source.title,
+        });
+        headerContent.add_child(sourceTitle);
+
+        vbox.add_child(this._header);
+
+        // Body Layout
+        const hbox = new St.BoxLayout({
+            style_class: 'message-box',
+        });
+        vbox.add_child(hbox);
+
+        // this._actionBin = new St.Bin({
+        //     style_class: 'message-action-bin',
+        //     visible: false,
+        // });
+        // vbox.add_child(this._actionBin);
+
+        this._actionBin = new St.Widget({
+            style_class: 'message-action-bin',
+            visible: false,
+            layout_manager: new Clutter.BoxLayout({
+                homogeneous: true,
+            }),
+        });
+        vbox.add_child(this._actionBin);
+
+        this._icon = new St.Icon({
+            style_class: 'message-icon',
+            y_expand: true,
+            y_align: Clutter.ActorAlign.START,
+            visible: true,
+            // icon_name: 'help-about-symbolic',
+        });
+        hbox.add_child(this._icon);
+
+        const contentBox = new St.BoxLayout({
+            style_class: 'message-content',
+            vertical: true,
+            x_expand: true,
+        });
+        hbox.add_child(contentBox);
+
+        this.titleLabel = new St.Label({
+            style_class: 'message-title',
+            y_align: Clutter.ActorAlign.END,
+        });
+        contentBox.add_child(this.titleLabel);
+
+        this._bodyLabel = new URLHighlighter("", true, false);
+        this._bodyLabel.actor.add_style_class_name('message-body');
+        this._bodyBin = new St.Bin({
+            x_expand: true,
+            x_fill: true,
+            child: this._bodyLabel.actor,
+        });
+        contentBox.add_child(this._bodyBin);
 
         // this._table = new St.Table({
         //     name: 'notification',
         //     reactive: true
         // });
-        this._notificationLayout = new St.BoxLayout({
-            style_class: 'notification',
-            vertical: true,
-        });
+        // this._notificationLayout = new St.BoxLayout({
+        //     style_class: 'notification',
+        //     vertical: true,
+        // });
         // this.actor.set_child(this._table);
-        this.actor.set_child(this._notificationLayout);
+        // this.actor.set_child(this._notificationLayout);
+        // vbox.add_child(this._notificationLayout);
 
         this._buttonFocusManager = St.FocusManager.get_for_stage(global.stage);
 
-        this._bannerLayout = new St.BoxLayout({
-            style_class: "notification-banner",
-        });
-        this._notificationLayout.add_actor(this._bannerLayout);
+        // this._bannerLayout = new St.BoxLayout({
+        //     style_class: "notification-banner",
+        // });
+        // this._notificationLayout.add_actor(this._bannerLayout);
 
-        this._iconBin = new St.Bin();
-        this._bannerLayout.add_actor(this._iconBin);
+        // this._iconBin = new St.Bin();
+        // this._bannerLayout.add_actor(this._iconBin);
 
         // the banner box is now just a simple vbox.
         // The first line should have the time, and the second the title.
         // Time only shown inside message tray.
-        this._bannerBox = new St.BoxLayout({
-            vertical: true,
-            style_class: 'notification-title-layout',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
+        // this._bannerBox = new St.BoxLayout({
+        //     vertical: true,
+        //     style_class: 'notification-title-layout',
+        //     y_align: Clutter.ActorAlign.CENTER,
+        // });
         // this._table.add(this._bannerBox, {
         //     row: 0,
         //     col: 1,
@@ -304,19 +402,19 @@ var Notification = class Notification {
         //     y_expand: false,
         //     y_fill: false
         // });
-        this._bannerLayout.add_actor(this._bannerBox);
+        // this._bannerLayout.add_actor(this._bannerBox);
 
-        this._timeLabel = new St.Label({
-            show_on_set_parent: false,
-            style_class: 'notification-timestamp'
-        });
-        this._titleLabel = new St.Label({
-            style_class: 'notification-title',
-        });
-        this._titleLabel.clutter_text.line_wrap = true;
-        this._titleLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-        this._bannerBox.add_actor(this._timeLabel);
-        this._bannerBox.add_actor(this._titleLabel);
+        // this._timeLabel = new St.Label({
+        //     show_on_set_parent: false,
+        //     style_class: 'notification-timestamp'
+        // });
+        // this._titleLabel = new St.Label({
+        //     style_class: 'notification-title',
+        // });
+        // this._titleLabel.clutter_text.line_wrap = true;
+        // this._titleLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+        // this._bannerBox.add_actor(this._timeLabel);
+        // this._bannerBox.add_actor(this._titleLabel);
 
         // This is an empty cell that overlaps with this._bannerBox cell to ensure
         // that this._bannerBox cell expands horizontally, while not forcing the
@@ -329,24 +427,24 @@ var Notification = class Notification {
         // });
 
         // spacer
-        this._bannerLayout.add_child(new Clutter.Actor({ x_expand: true }));
+        // this._bannerLayout.add_child(new Clutter.Actor({ x_expand: true }));
 
         // notification dismiss button
-        let icon = new St.Icon({
-            icon_name: 'window-close',
-            icon_type: St.IconType.SYMBOLIC,
-            icon_size: 16
-        });
-        let closeButton = new St.Button({
-            style_class: 'notification-close-button',
-            child: icon,
-            opacity: 128,
-            y_fill: false,
-            y_expand: false,
-            y_align: St.Align.START,
-        });
-        closeButton.connect('clicked', Lang.bind(this, this.destroy));
-        closeButton.connect('notify::hover', function () { closeButton.opacity = closeButton.hover ? 255 : 128; });
+        // let icon = new St.Icon({
+        //     icon_name: 'window-close',
+        //     icon_type: St.IconType.SYMBOLIC,
+        //     icon_size: 16
+        // });
+        // let closeButton = new St.Button({
+        //     style_class: 'notification-close-button',
+        //     child: icon,
+        //     opacity: 128,
+        //     y_fill: false,
+        //     y_expand: false,
+        //     y_align: St.Align.START,
+        // });
+        // closeButton.connect('clicked', Lang.bind(this, this.destroy));
+        // closeButton.connect('notify::hover', function () { closeButton.opacity = closeButton.hover ? 255 : 128; });
         // this._table.add(closeButton, {
         //     row: 0,
         //     col: 3,
@@ -355,12 +453,12 @@ var Notification = class Notification {
         //     y_fill: false,
         //     y_align: St.Align.START
         // });
-        this._bannerLayout.add_actor(closeButton);
+        // this._bannerLayout.add_actor(closeButton);
 
-        this._bodyLayout = new St.BoxLayout({
-            style_class: 'notification-body',
-        });
-        this._notificationLayout.add_actor(this._bodyLayout);
+        // this._bodyLayout = new St.BoxLayout({
+        //     style_class: 'notification-body',
+        // });
+        // this._notificationLayout.add_actor(this._bodyLayout);
 
         // set icon, title, body
         this.update(title, body, params);
@@ -382,31 +480,41 @@ var Notification = class Notification {
         this._timestamp = new Date();
         this._inNotificationBin = false;
         params = Params.parse(params, {
-            icon: null,
+            gicon: null,
             titleMarkup: false,
             bodyMarkup: false,
             silent: false
         });
 
+        global.log("Running update");
+        global.log(params.icon);
+
+        if (params.gicon) {
+            global.log("Updating the icon2");
+            global.log(params.icon);
+            this._sourceIcon.gicon = params.gicon;
+            this._icon.gicon = params.gicon;
+        }
+
         this.silent = params.silent;
 
-        if (this._icon && params.icon) {
-            this._icon.destroy();
-            this._icon = null;
-        }
+        // if (this._icon && params.icon) {
+        //     this._icon.destroy();
+        //     this._icon = null;
+        // }
 
-        if (!this._icon) {
-            this._icon = params.icon || this.source.createNotificationIcon();
-            this._iconBin.set_child(this._icon);
-            // this._table.add(this._icon, {
-            //     row: 0,
-            //     col: 0,
-            //     x_expand: false,
-            //     y_expand: false,
-            //     y_fill: false,
-            //     y_align: St.Align.START
-            // });
-        }
+        // if (!this._icon) {
+        //     this._icon = params.icon || this.source.createNotificationIcon();
+        //     // this._iconBin.set_child(this._icon);
+        //     // this._table.add(this._icon, {
+        //     //     row: 0,
+        //     //     col: 0,
+        //     //     x_expand: false,
+        //     //     y_expand: false,
+        //     //     y_fill: false,
+        //     //     y_align: St.Align.START
+        //     // });
+        // }
 
         // title: strip newlines, escape or validate markup, add bold markup
         if (typeof (title) === "string") {
@@ -414,71 +522,75 @@ var Notification = class Notification {
         } else {
             this.title = "";
         }
-        this._titleLabel.set_text(this.title);
+        this.titleLabel.set_text(this.title);
         // this._titleLabel.clutter_text.set_markup('<b>' + this.title + '</b>');
 
-        this._timeLabel.clutter_text.set_markup(this._timestamp.toLocaleTimeString());
-        this._timeLabel.hide();
+        // this._timeLabel.clutter_text.set_markup(this._timestamp.toLocaleTimeString());
+        // this._timeLabel.hide();
 
         this._setBodyArea(body, params.bodyMarkup);
     }
 
     _setBodyArea(text, allowMarkup) {
         if (text) {
-            if (!this._scrollArea) {
-                /* FIXME: vscroll should be enabled
-                 * -vfade covers too much for this size of scrollable
-                 * -scrollview min-height is broken inside tray with a scrollview
-                 *
-                 * TODO: when scrollable:
-                 *
-                 * applet connects to this signal to enable captured-event passthru so you can grab the scrollbar:
-                 * let vscroll = this._scrollArea.get_vscroll_bar();
-                 * vscroll.connect('scroll-start', () => { this.emit('scrolling-changed', true) });
-                 * vscroll.connect('scroll-stop', () => { this.emit('scrolling-changed', false) });
-                 *
-                 * `enable_mouse_scrolling` makes it difficult to scroll when there are many notifications
-                 * in the tray because most of the area is these smaller scrollviews which capture the event.
-                 * ideally, this should only be disabled when the notification is in the tray and there are
-                 * many notifications.
-                 */
-                this._scrollArea = new St.ScrollView({
-                    name: 'notification-scrollview',
-                    vscrollbar_policy: St.PolicyType.NEVER,
-                    hscrollbar_policy: St.PolicyType.NEVER,
-                    enable_mouse_scrolling: false/*,
-                                                       style_class: 'vfade'*/ });
+            // if (!this._scrollArea) {
+            //     /* FIXME: vscroll should be enabled
+            //      * -vfade covers too much for this size of scrollable
+            //      * -scrollview min-height is broken inside tray with a scrollview
+            //      *
+            //      * TODO: when scrollable:
+            //      *
+            //      * applet connects to this signal to enable captured-event passthru so you can grab the scrollbar:
+            //      * let vscroll = this._scrollArea.get_vscroll_bar();
+            //      * vscroll.connect('scroll-start', () => { this.emit('scrolling-changed', true) });
+            //      * vscroll.connect('scroll-stop', () => { this.emit('scrolling-changed', false) });
+            //      *
+            //      * `enable_mouse_scrolling` makes it difficult to scroll when there are many notifications
+            //      * in the tray because most of the area is these smaller scrollviews which capture the event.
+            //      * ideally, this should only be disabled when the notification is in the tray and there are
+            //      * many notifications.
+            //      */
+            //     this._scrollArea = new St.ScrollView({
+            //         name: 'notification-scrollview',
+            //         vscrollbar_policy: St.PolicyType.NEVER,
+            //         hscrollbar_policy: St.PolicyType.NEVER,
+            //         enable_mouse_scrolling: false/*,
+            //                                            style_class: 'vfade'*/ });
 
-                // this._table.add(this._scrollArea, {
-                //     row: 1,
-                //     col: 2
-                // });
+            //     // this._table.add(this._scrollArea, {
+            //     //     row: 1,
+            //     //     col: 2
+            //     // });
 
-                this._bodyLayout.add_actor(this._scrollArea);
+            //     // this._bodyLayout.add_actor(this._scrollArea);
 
-                let content = new St.BoxLayout({
-                    // name: 'notification-body',
-                    vertical: true
-                });
-                this._scrollArea.add_actor(content);
+            //     let content = new St.BoxLayout({
+            //         // name: 'notification-body',
+            //         vertical: true
+            //     });
+            //     this._scrollArea.add_actor(content);
 
-                // body label
-                this._bodyUrlHighlighter = new URLHighlighter("", true, false);
-                content.add(this._bodyUrlHighlighter.actor);
-            }
-            this._bodyUrlHighlighter.setMarkup(text, allowMarkup);
+            //     // body label
+            //     // this._bodyUrlHighlighter = new URLHighlighter("", true, false);
+            //     // content.add(this._bodyUrlHighlighter.actor);
+            // }
+            this._bodyLabel.setMarkup(text, allowMarkup);
         } else {
-            if (this._scrollArea) {
-                this._scrollArea.destroy()
-                this._scrollArea = null;
-                this._bodyUrlHighlighter.destroy()
-                this._bodyUrlHighlighter = null;
-            }
+            // if (this._bodyLabel) {
+            //     // this._scrollArea.destroy()
+            //     // this._scrollArea = null;
+            //     this._bodyLabel.actor.destroy();
+            //     this._bodyLabel = null;
+            // }
         }
         this._updateLayout();
     }
 
     setIconVisible(visible) {
+        global.log("__________");
+        global.log("setIconVisible");
+        global.log(this._icon);
+        global.log("__________");
         if (this._icon)
             this._icon.visible = visible;
     }
@@ -490,27 +602,27 @@ var Notification = class Notification {
       * Scrolls the content area (if scrollable) to the indicated edge
       */
     scrollTo(side) {
-        if (!this._scrollArea)
+        if (true)
             return;
-        let adjustment = this._scrollArea.vscroll.adjustment;
-        if (side == St.Side.TOP)
-            adjustment.value = adjustment.lower;
-        else if (side == St.Side.BOTTOM)
-            adjustment.value = adjustment.upper;
+        // let adjustment = this._scrollArea.vscroll.adjustment;
+        // if (side == St.Side.TOP)
+        //     adjustment.value = adjustment.lower;
+        // else if (side == St.Side.BOTTOM)
+        //     adjustment.value = adjustment.upper;
     }
 
     _updateLayout() {
-        if (this._imageBin || this._scrollArea || this._actionArea) {
-            this._notificationLayout.add_style_class_name('multi-line-notification');
-        } else {
-            this._notificationLayout.remove_style_class_name('multi-line-notification');
-        }
+        // if (this._actionArea) {
+        //     this._notificationLayout.add_style_class_name('multi-line-notification');
+        // } else {
+        //     this._notificationLayout.remove_style_class_name('multi-line-notification');
+        // }
 
-        if (this._imageBin) {
-            this._notificationLayout.add_style_class_name('notification-with-image');
-        } else {
-            this._notificationLayout.remove_style_class_name('notification-with-image');
-        }
+        // if (this._imageBin) {
+        //     this._notificationLayout.add_style_class_name('notification-with-image');
+        // } else {
+        //     this._notificationLayout.remove_style_class_name('notification-with-image');
+        // }
 
         // if (this._scrollArea)
         //     this._table.child_set(this._scrollArea, {
@@ -524,39 +636,39 @@ var Notification = class Notification {
         //     });
     }
 
-    setImage(image) {
-        if (this._imageBin)
-            this.unsetImage();
-        if (!image)
-            return;
-        this._imageBin = new St.Bin({
-            child: image,
-            // opacity: NOTIFICATION_IMAGE_OPACITY
-            y_align: St.Align.START,
-            y_expand: false,
-            y_fill: false,
-        });
-        // this._table.add(this._imageBin, {
-        //     row: 1,
-        //     col: 1,
-        //     row_span: 2,
-        //     x_expand: false,
-        //     y_expand: false,
-        //     x_fill: false,
-        //     y_fill: false
-        // });
+    // setImage(image) {
+    //     if (this._imageBin)
+    //         this.unsetImage();
+    //     if (!image)
+    //         return;
+    //     this._imageBin = new St.Bin({
+    //         child: image,
+    //         // opacity: NOTIFICATION_IMAGE_OPACITY
+    //         y_align: St.Align.START,
+    //         y_expand: false,
+    //         y_fill: false,
+    //     });
+    //     // this._table.add(this._imageBin, {
+    //     //     row: 1,
+    //     //     col: 1,
+    //     //     row_span: 2,
+    //     //     x_expand: false,
+    //     //     y_expand: false,
+    //     //     x_fill: false,
+    //     //     y_fill: false
+    //     // });
 
-        this._bodyLayout.insert_actor(this._imageBin, 0);
-        this._updateLayout();
-    }
+    //     this._bodyLayout.insert_actor(this._imageBin, 0);
+    //     this._updateLayout();
+    // }
 
-    unsetImage() {
-        if (!this._imageBin)
-            return;
-        this._imageBin.destroy();
-        this._imageBin = null;
-        this._updateLayout();
-    }
+    // unsetImage() {
+    //     if (!this._imageBin)
+    //         return;
+    //     this._imageBin.destroy();
+    //     this._imageBin = null;
+    //     this._updateLayout();
+    // }
 
     /**
      * addButton:
@@ -571,13 +683,18 @@ var Notification = class Notification {
      * %action-invoked signal with @id as a parameter.
      */
     addButton(id, label) {
-        if (!this._actionArea) {
-            this._actionArea = new St.Widget({
-                layout_manager: new Clutter.BoxLayout({
-                    homogeneous: true,
-                    spacing: 12,
-                }),
-            });
+        global.log("_________________ addButton _______________");
+        if (!this._actionBin.visible)
+            this._actionBin.visible = true;
+
+        global.log(this._actionBin.visible);
+        // if (!this._actionArea) {
+        //     this._actionArea = new St.Widget({
+        //         layout_manager: new Clutter.BoxLayout({
+        //             homogeneous: true,
+        //             spacing: 12,
+        //         }),
+        //     });
             // this._actionArea = new St.BoxLayout({ name: 'notification-actions' });
             // this._table.add(this._actionArea, {
             //     row: 2,
@@ -589,8 +706,8 @@ var Notification = class Notification {
             //     y_fill: false,
             //     x_align: St.Align.MIDDLE
             // });
-            this._notificationLayout.add_actor(this._actionArea);
-        }
+        //     this._notificationLayout.add_actor(this._actionArea);
+        // }
 
         let button = new St.Button({
             can_focus: true,
@@ -607,12 +724,15 @@ var Notification = class Notification {
             button.label = label;
         }
 
-        if (this._actionArea.get_n_children() > 0)
-            this._buttonFocusManager.remove_group(this._actionArea);
+        if (this._actionBin.get_n_children() > 0)
+            this._buttonFocusManager.remove_group(this._actionBin);
 
-        this._actionArea.add_actor(button);
-        this._buttonFocusManager.add_group(this._actionArea);
+        this._actionBin.add_actor(button);
+        this._buttonFocusManager.add_group(this._actionBin);
         button.connect('clicked', Lang.bind(this, this._onActionInvoked, id));
+        // button.connect('clicked', () => {
+        //     this._onActionInvoked(button, mouseButtonClicked, id);
+        // });
         this._updateLayout();
     }
 
@@ -684,16 +804,13 @@ var Notification = class Notification {
 };
 Signals.addSignalMethods(Notification.prototype);
 
-function Source(title) {
-    this._init(title);
-}
+var Source = class Source {
+    constructor(title) {
+        ICON_SIZE: 24;
+        MAX_NOTIFICATIONS: 10;
 
-Source.prototype = {
-    ICON_SIZE: 24,
-    MAX_NOTIFICATIONS: 10,
-
-    _init: function (title) {
         this.title = title;
+        this.icon = null;
 
         this.actor = new St.Bin({
             x_fill: true,
@@ -706,34 +823,34 @@ Source.prototype = {
         this.isChat = false;
 
         this.notifications = [];
-    },
+    }
 
-    _updateCount: function () {
+    _updateCount() {
         let count = this.notifications.length;
         if (count > this.MAX_NOTIFICATIONS) {
             let oldestNotif = this.notifications.shift();
             oldestNotif.destroy();
         }
-    },
+    }
 
-    setTransient: function (isTransient) {
+    setTransient(isTransient) {
         this.isTransient = isTransient;
-    },
+    }
 
     // Called to create a new icon actor (of size this.ICON_SIZE).
     // Must be overridden by the subclass if you do not pass icons
     // explicitly to the Notification() constructor.
-    createNotificationIcon: function () {
+    createNotificationIcon() {
         throw new Error('no implementation of createNotificationIcon in ' + this);
-    },
+    }
 
     // Unlike createNotificationIcon, this always returns the same actor;
     // there is only one summary icon actor for a Source.
-    getSummaryIcon: function () {
+    getSummaryIcon() {
         return this.actor;
-    },
+    }
 
-    pushNotification: function (notification) {
+    pushNotification(notification) {
         if (this.notifications.indexOf(notification) < 0) {
             this.notifications.push(notification);
             this.emit('notification-added', notification);
@@ -751,60 +868,65 @@ Source.prototype = {
         });
 
         this._updateCount();
-    },
+    }
 
-    notify: function (notification) {
+    notify(notification) {
         this.pushNotification(notification);
         this.emit('notify', notification);
-    },
+    }
 
-    destroy: function (reason) {
+    destroy(reason) {
         this.emit('destroy', reason);
-    },
+    }
 
     //// Protected methods ////
 
     // The subclass must call this at least once to set the summary icon.
-    _setSummaryIcon: function (icon) {
-        if (this.actor.child)
-            this.actor.child.destroy();
-        this.actor.child = icon;
-    },
+    _setSummaryIcon(icon) {
+        global.log("__________");
+        global.log("set summary icon");
+        if (this.icon)
+            this.icon.destroy();
+        this.icon = icon;
+        global.log(this.icon);
+        global.log("__________");
+    }
 
     // Default implementation is to do nothing, but subclasses can override
-    open: function (notification) {
-    },
+    open(notification) {
+    }
 
-    destroyNonResidentNotifications: function () {
+    destroyNonResidentNotifications() {
         for (let i = this.notifications.length - 1; i >= 0; i--)
             if (!this.notifications[i].resident)
                 this.notifications[i].destroy();
-    },
+    }
 
     // Default implementation is to destroy this source, but subclasses can override
-    _lastNotificationRemoved: function () {
+    _lastNotificationRemoved() {
         this.destroy();
     }
 };
 Signals.addSignalMethods(Source.prototype);
 
-function MessageTray() {
-    this._init();
-}
+// function MessageTray() {
+//     this._init();
+// }
 
-MessageTray.prototype = {
-    _init: function () {
-        this._presence = new GnomeSession.Presence(Lang.bind(this, function (proxy, error) {
+// MessageTray.prototype = {
+var MessageTray = class MessageTray {
+    constructor() {
+        this._presence = new GnomeSession.Presence((proxy, error) => {
             this._onStatusChanged(proxy.status);
-        }));
+        });
 
         this._userStatus = GnomeSession.PresenceStatus.AVAILABLE;
         this._busy = false;
         this._backFromAway = false;
 
-        this._presence.connectSignal('StatusChanged', Lang.bind(this, function (proxy, senderName, [status]) {
+        this._presence.connectSignal('StatusChanged', (proxy, senderName, [status]) => {
             this._onStatusChanged(status);
-        }));
+        });
 
         this._notificationBin = new St.Bin();
         this._notificationBin.hide();
@@ -833,40 +955,40 @@ MessageTray.prototype = {
             this.bottomPosition = this.settings.get_boolean("bottom-notifications");
         });
 
-        let updateLockState = Lang.bind(this, function () {
+        let updateLockState = () => {
             if (this._locked) {
                 this._unlock();
             } else {
                 this._updateState();
             }
-        });
+        };
 
         Main.overview.connect('showing', updateLockState);
         Main.overview.connect('hiding', updateLockState);
         Main.expo.connect('showing', updateLockState);
         Main.expo.connect('hiding', updateLockState);
-    },
+    }
 
-    contains: function (source) {
+    contains(source) {
         return this._getSourceIndex(source) >= 0;
-    },
+    }
 
-    _getSourceIndex: function (source) {
+    _getSourceIndex(source) {
         return this._sources.indexOf(source);
-    },
+    }
 
-    add: function (source) {
+    add(source) {
         if (this.contains(source)) {
             log('Trying to re-add source ' + source.title);
             return;
         }
 
-        source.connect('notify', Lang.bind(this, this._onNotify));
+        source.connect('notify', this._onNotify.bind(this));
 
-        source.connect('destroy', Lang.bind(this, this._onSourceDestroy));
-    },
+        source.connect('destroy', this._onSourceDestroy.bind(this));
+    }
 
-    _onSourceDestroy: function (source) {
+    _onSourceDestroy(source) {
         let index = this._getSourceIndex(source);
         if (index == -1)
             return;
@@ -883,9 +1005,9 @@ MessageTray.prototype = {
 
         if (needUpdate)
             this._updateState();
-    },
+    }
 
-    _onNotificationDestroy: function (notification) {
+    _onNotificationDestroy(notification) {
         if (this._notification == notification && (this._notificationState == State.SHOWN || this._notificationState == State.SHOWING)) {
             this._updateNotificationTimeout(0);
             this._notificationRemoved = true;
@@ -897,20 +1019,20 @@ MessageTray.prototype = {
         notification.destroy();
         if (index != -1)
             this._notificationQueue.splice(index, 1);
-    },
+    }
 
-    _lock: function () {
+    _lock() {
         this._locked = true;
-    },
+    }
 
-    _unlock: function () {
+    _unlock() {
         if (!this._locked)
             return;
         this._locked = false;
         this._updateState();
-    },
+    }
 
-    _onNotify: function (source, notification) {
+    _onNotify(source, notification) {
         if (this._notification == notification) {
             // If a notification that is being shown is updated, we update
             // how it is shown and extend the time until it auto-hides.
@@ -918,17 +1040,16 @@ MessageTray.prototype = {
             // we stop hiding it and show it again.
             this._updateShowingNotification();
         } else if (this._notificationQueue.indexOf(notification) < 0) {
-            notification.connect('destroy',
-                Lang.bind(this, this._onNotificationDestroy));
+            notification.connect('destroy', this._onNotificationDestroy.bind(this));
             this._notificationQueue.push(notification);
             this._notificationQueue.sort(function (notification1, notification2) {
                 return (notification2.urgency - notification1.urgency);
             });
         }
         this._updateState();
-    },
+    }
 
-    _onStatusChanged: function (status) {
+    _onStatusChanged(status) {
         this._backFromAway = (this._userStatus == GnomeSession.PresenceStatus.IDLE && this._userStatus != status);
         this._userStatus = status;
 
@@ -944,13 +1065,13 @@ MessageTray.prototype = {
         }
 
         this._updateState();
-    },
+    }
 
     // All of the logic for what happens when occurs here; the various
     // event handlers merely update variables and
     // _updateState() figures out what (if anything) needs to be done
     // at the present time.
-    _updateState: function () {
+    _updateState() {
         // Notifications
         let notificationUrgent = this._notificationQueue.length > 0 && this._notificationQueue[0].urgency == Urgency.CRITICAL;
         let notificationsPending = this._notificationQueue.length > 0 && (!this._busy || notificationUrgent);
@@ -980,31 +1101,9 @@ MessageTray.prototype = {
             if (notificationExpired)
                 this._hideNotification();
         }
-    },
+    }
 
-    _tween: function (actor, statevar, value, params) {
-        let onComplete = params.onComplete;
-        let onCompleteScope = params.onCompleteScope;
-        let onCompleteParams = params.onCompleteParams;
-
-        params.onComplete = this._tweenComplete;
-        params.onCompleteScope = this;
-        params.onCompleteParams = [statevar, value, onComplete, onCompleteScope, onCompleteParams];
-
-        Tweener.addTween(actor, params);
-
-        let valuing = (value == State.SHOWN) ? State.SHOWING : State.HIDING;
-        this[statevar] = valuing;
-    },
-
-    _tweenComplete: function (statevar, value, onComplete, onCompleteScope, onCompleteParams) {
-        this[statevar] = value;
-        if (onComplete)
-            onComplete.apply(onCompleteScope, onCompleteParams);
-        this._updateState();
-    },
-
-    _showNotification: function () {
+    _showNotification() {
         this._notification = this._notificationQueue.shift();
         if (this._notification.actor._parent_container) {
             this._notification.actor._parent_container.remove_actor(this._notification.actor);
@@ -1043,8 +1142,9 @@ MessageTray.prototype = {
             this._notificationBin.y = this._monitor.y + topGap; // Notifications appear from here (for the animation)
         }
 
-        let margin = this._notification._notificationLayout.get_theme_node().get_length('margin-from-right-edge-of-screen');
-        this._notificationBin.x = this._monitor.x + this._monitor.width - this._notification._notificationLayout.width - margin - rightGap;
+        // let margin = this._notification.actor.get_theme_node().get_length('margin-from-right-edge-of-screen');
+        let margin = 20;
+        this._notificationBin.x = this._monitor.x + this._monitor.width - this._notification.actor.width - margin - rightGap;
         if (!this._notification.silent || this._notification.urgency >= Urgency.HIGH) {
             Main.soundManager.play('notification');
         }
@@ -1086,21 +1186,35 @@ MessageTray.prototype = {
         // _notifiationTimeout() if the mouse is moving towards the notification.
         // We don't pop down the notification if the mouse is moving towards it.
         this._lastSeenMouseDistance = Math.abs(this._notificationBin.y - y);
-    },
+    }
 
-    _updateShowingNotification: function () {
-        Tweener.removeTweens(this._notificationBin);
-        let tweenParams = {
+    _updateShowingNotification() {
+        // Tweener.removeTweens(this._notificationBin);
+        // let tweenParams = {
+        //     opacity: 255,
+        //     time: ANIMATION_TIME,
+        //     transition: 'easeOutQuad',
+        //     onComplete: this._showNotificationCompleted,
+        //     onCompleteScope: this
+        // };
+        // this._tween(this._notificationBin, '_notificationState', State.SHOWN, tweenParams);
+        this._notificationState = State.SHOWING;
+        // Tweener.removeTweens(this._notificationBin);
+        // Tweener.addTween(this._notificationBin, {
+        this._notificationBin.remove_all_transitions();
+        this._notificationBin.ease({
             opacity: 255,
-            time: ANIMATION_TIME,
-            transition: 'easeOutQuad',
-            onComplete: this._showNotificationCompleted,
-            onCompleteScope: this
-        };
-        this._tween(this._notificationBin, '_notificationState', State.SHOWN, tweenParams);
-    },
+            duration: ANIMATION_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this._notificationState = State.SHOWN;
+                this._showNotificationCompleted();
+                this._updateState();
+            }
+        });
+    }
 
-    _showNotificationCompleted: function () {
+    _showNotificationCompleted() {
         this._updateNotificationTimeout(0);
         this.notificationDuration = this.settings.get_int("notification-duration");
 
@@ -1109,20 +1223,21 @@ MessageTray.prototype = {
         } else if (AppletManager.get_role_provider_exists(AppletManager.Roles.NOTIFICATIONS)) {
             this._updateNotificationTimeout(NOTIFICATION_CRITICAL_TIMEOUT_WITH_APPLET * 1000);
         }
-    },
+    }
 
-    _updateNotificationTimeout: function (timeout) {
+    _updateNotificationTimeout(timeout) {
         if (this._notificationTimeoutId > 0) {
-            Mainloop.source_remove(this._notificationTimeoutId);
+            GLib.source_remove(this._notificationTimeoutId);
             this._notificationTimeoutId = 0;
         }
         if (timeout > 0)
-            this._notificationTimeoutId =
-                Mainloop.timeout_add(timeout,
-                    Lang.bind(this, this._notificationTimeout));
-    },
+            this._notificationTimeoutId = GLib.timeout_add(
+                GLib.PRIORITY_DEFAULT,
+                timeout,
+                this._notificationTimeout.bind(this));
+    }
 
-    _notificationTimeout: function () {
+    _notificationTimeout() {
         let [x, y, mods] = global.get_pointer();
         let distance = Math.abs(this._notificationBin.y - y);
         if (distance < this._lastSeenMouseDistance - 50 || this._notification && this._notification.actor.hover) {
@@ -1138,9 +1253,9 @@ MessageTray.prototype = {
         }
 
         return false;
-    },
+    }
 
-    _hideNotification: function () {
+    _hideNotification() {
         let y = Main.layoutManager.primaryMonitor.y;
 
         if (this.bottomPosition) {
@@ -1150,17 +1265,32 @@ MessageTray.prototype = {
             y += Main.layoutManager.primaryMonitor.height - this._notificationBin.height;
         }
 
-        this._tween(this._notificationBin, '_notificationState', State.HIDDEN, {
-            y,
+        // this._tween(this._notificationBin, '_notificationState', State.HIDDEN, {
+        //     y,
+        //     opacity: 0,
+        //     time: ANIMATION_TIME,
+        //     transition: 'easeOutQuad',
+        //     onComplete: this._hideNotificationCompleted,
+        //     onCompleteScope: this
+        // });
+        this._notificationState = State.HIDING;
+        // Tweener.removeTweens(this._notificationBin);
+        // Tweener.addTween(this._notificationBin, {
+        this._notificationBin.remove_all_transitions();
+        this._notificationBin.ease({
+            y: y,
             opacity: 0,
-            time: ANIMATION_TIME,
-            transition: 'easeOutQuad',
-            onComplete: this._hideNotificationCompleted,
-            onCompleteScope: this
+            duration: ANIMATION_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => {
+                this._notificationState = State.HIDDEN;
+                this._hideNotificationCompleted();
+                this._updateState();
+            }
         });
-    },
+    }
 
-    _hideNotificationCompleted: function () {
+    _hideNotificationCompleted() {
         this._notificationBin.hide();
         this._notificationBin.child = null;
         let notification = this._notification;
@@ -1176,30 +1306,19 @@ MessageTray.prototype = {
 };
 Signals.addSignalMethods(MessageTray.prototype);
 
-
-
-function SystemNotificationSource() {
-    this._init();
-}
-
-SystemNotificationSource.prototype = {
-    __proto__: Source.prototype,
-
-    _init: function () {
-        Source.prototype._init.call(this, _("System Information"));
+var SystemNotificationSource = class SystemNotificationSource extends Source {
+    constructor() {
+        super();
+        // Source.prototype._init.call(this, _("System Information"));
 
         this._setSummaryIcon(this.createNotificationIcon());
-    },
+    }
 
-    createNotificationIcon: function () {
-        return new St.Icon({
-            icon_name: 'dialog-information',
-            icon_type: St.IconType.SYMBOLIC,
-            icon_size: this.ICON_SIZE
-        });
-    },
+    createNotificationIcon() {
+        return new Gio.ThemedIcon ({ name: 'dialog-information' });
+    }
 
-    open: function () {
+    open() {
         this.destroy();
     }
 };

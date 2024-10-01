@@ -72,6 +72,15 @@ void cinnamon_shader_effect_set_double_uniform (ClutterShaderEffect *effect,
                                              const gchar         *name,
                                              gdouble             value);
 
+GdkPixbuf *cinnamon_util_create_pixbuf_from_data (const guchar      *data,
+                                                  gsize              len,
+                                                  GdkColorspace      colorspace,
+                                                  gboolean           has_alpha,
+                                                  int                bits_per_sample,
+                                                  int                width,
+                                                  int                height,
+                                                  int                rowstride);
+
 G_END_DECLS
 
 #endif /* __CINNAMON_UTIL_H__ */
