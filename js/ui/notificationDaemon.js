@@ -2,6 +2,7 @@
 
 const Clutter = imports.gi.Clutter;
 const GdkPixbuf = imports.gi.GdkPixbuf;
+const GObject = imports.gi.GObject;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Cinnamon = imports.gi.Cinnamon;
@@ -189,7 +190,7 @@ var NotificationDaemon = class NotificationDaemon {
             }
         }
 
-        let source = new Source(title, pid, sender, ndata ? ndata.hints['desktop-entry'] : null);
+        let source = new NotificationSource(title, pid, sender, ndata ? ndata.hints['desktop-entry'] : null);
         source.setTransient(isForTransientNotification);
 
         if (!isForTransientNotification) {
@@ -439,7 +440,7 @@ var NotificationDaemon = class NotificationDaemon {
             notification.setUseActionIcons(hints.maybeGet('action-icons') == true);
             for (let i = 0; i < actions.length - 1; i += 2) {
                 if (actions[i] == 'default')
-                    notification.connect('clicked', () => {
+                    notification.connect('action-invoked', () => {
                         this._emitActionInvoked(ndata.id, "default");
                     });
                 else
@@ -543,9 +544,11 @@ var NotificationDaemon = class NotificationDaemon {
 // Source.prototype = {
 //     __proto__:  MessageTray.Source.prototype,
 
-var Source = class Source extends MessageTray.Source {
-    constructor(title, pid, sender, appId) {
-        super(title);
+// var NotificationSource = class NotificationSource extends MessageTray.Source {
+var NotificationSource = GObject.registerClass(
+class NotificationSource extends MessageTray.Source {
+    _init(title, pid, sender, appId) {
+        super._init(title);
 
         // MessageTray.Source.prototype._init.call(this, title);
 
@@ -587,7 +590,7 @@ var Source = class Source extends MessageTray.Source {
         if (!this.app && icon)
             this._setSummaryIcon(icon);
 
-        this.notify(notification);
+        this.showNotification(notification);
     }
 
     _getApp(appId) {
@@ -657,4 +660,4 @@ var Source = class Source extends MessageTray.Source {
         }
         super.destroy();
     }
-};
+});

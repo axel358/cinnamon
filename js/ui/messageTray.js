@@ -1,6 +1,7 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
 
 const Clutter = imports.gi.Clutter;
+const GObject = imports.gi.GObject;
 const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
@@ -234,8 +235,20 @@ var URLHighlighter = class URLHighlighter {
  * with an URGENT priority will always play a sound effect if there is
  * one set.
  */
-var Notification = class Notification {
-    constructor(source, title, body, params) {
+// var Notification = class Notification {
+//     constructor(source, title, body, params) {
+var Notification = GObject.registerClass({
+    GTypeName: 'MessageTray_Notification',
+    Signals: {
+        'activated': {},
+        'action-invoked': { param_types: [GObject.TYPE_UINT] },
+        'done-displaying': {},
+        'destroy': { param_types: [GObject.TYPE_UINT] },
+    }
+}, class Notification extends GObject.Object {
+    _init(source, title, body, params) {
+        super._init();
+
         title = Util.decodeHTML(title);
         body = Util.decodeHTML(body);
 
@@ -263,7 +276,7 @@ var Notification = class Notification {
             x_fill: true,
         });
         this.actor._parent_container = null;
-        this.actor.connect('clicked', () => this._onClicked());
+        this.actor.connect('clicked', () => this.activate());
         this.actor.connect('destroy', () => this._onDestroy());
 
         let vbox = new St.BoxLayout({
@@ -318,12 +331,6 @@ var Notification = class Notification {
         });
         vbox.add_child(hbox);
 
-        // this._actionBin = new St.Bin({
-        //     style_class: 'message-action-bin',
-        //     visible: false,
-        // });
-        // vbox.add_child(this._actionBin);
-
         this._actionBin = new St.Widget({
             style_class: 'message-action-bin',
             visible: false,
@@ -364,104 +371,10 @@ var Notification = class Notification {
         });
         contentBox.add_child(this._bodyBin);
 
-        // this._table = new St.Table({
-        //     name: 'notification',
-        //     reactive: true
-        // });
-        // this._notificationLayout = new St.BoxLayout({
-        //     style_class: 'notification',
-        //     vertical: true,
-        // });
-        // this.actor.set_child(this._table);
-        // this.actor.set_child(this._notificationLayout);
-        // vbox.add_child(this._notificationLayout);
-
         this._buttonFocusManager = St.FocusManager.get_for_stage(global.stage);
 
-        // this._bannerLayout = new St.BoxLayout({
-        //     style_class: "notification-banner",
-        // });
-        // this._notificationLayout.add_actor(this._bannerLayout);
-
-        // this._iconBin = new St.Bin();
-        // this._bannerLayout.add_actor(this._iconBin);
-
-        // the banner box is now just a simple vbox.
-        // The first line should have the time, and the second the title.
-        // Time only shown inside message tray.
-        // this._bannerBox = new St.BoxLayout({
-        //     vertical: true,
-        //     style_class: 'notification-title-layout',
-        //     y_align: Clutter.ActorAlign.CENTER,
-        // });
-        // this._table.add(this._bannerBox, {
-        //     row: 0,
-        //     col: 1,
-        //     col_span: 2,
-        //     x_expand: false,
-        //     y_expand: false,
-        //     y_fill: false
-        // });
-        // this._bannerLayout.add_actor(this._bannerBox);
-
-        // this._timeLabel = new St.Label({
-        //     show_on_set_parent: false,
-        //     style_class: 'notification-timestamp'
-        // });
-        // this._titleLabel = new St.Label({
-        //     style_class: 'notification-title',
-        // });
-        // this._titleLabel.clutter_text.line_wrap = true;
-        // this._titleLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-        // this._bannerBox.add_actor(this._timeLabel);
-        // this._bannerBox.add_actor(this._titleLabel);
-
-        // This is an empty cell that overlaps with this._bannerBox cell to ensure
-        // that this._bannerBox cell expands horizontally, while not forcing the
-        // this._imageBin that is also in col: 2 to expand horizontally.
-        // this._table.add(new St.Bin(), {
-        //     row: 0,
-        //     col: 2,
-        //     y_expand: false,
-        //     y_fill: false
-        // });
-
-        // spacer
-        // this._bannerLayout.add_child(new Clutter.Actor({ x_expand: true }));
-
-        // notification dismiss button
-        // let icon = new St.Icon({
-        //     icon_name: 'window-close',
-        //     icon_type: St.IconType.SYMBOLIC,
-        //     icon_size: 16
-        // });
-        // let closeButton = new St.Button({
-        //     style_class: 'notification-close-button',
-        //     child: icon,
-        //     opacity: 128,
-        //     y_fill: false,
-        //     y_expand: false,
-        //     y_align: St.Align.START,
-        // });
-        // closeButton.connect('clicked', Lang.bind(this, this.destroy));
-        // closeButton.connect('notify::hover', function () { closeButton.opacity = closeButton.hover ? 255 : 128; });
-        // this._table.add(closeButton, {
-        //     row: 0,
-        //     col: 3,
-        //     x_expand: false,
-        //     y_expand: false,
-        //     y_fill: false,
-        //     y_align: St.Align.START
-        // });
-        // this._bannerLayout.add_actor(closeButton);
-
-        // this._bodyLayout = new St.BoxLayout({
-        //     style_class: 'notification-body',
-        // });
-        // this._notificationLayout.add_actor(this._bodyLayout);
-
-        // set icon, title, body
-        this.update(title, body, params);
+        if (arguments.length != 1)
+            this.update(title, body, params);
     }
 
     // for backwards compatibility with old class constant
@@ -486,35 +399,13 @@ var Notification = class Notification {
             silent: false
         });
 
-        global.log("Running update");
-        global.log(params.icon);
-
         if (params.gicon) {
-            global.log("Updating the icon2");
-            global.log(params.icon);
-            this._sourceIcon.gicon = params.gicon;
+            this._sourceIcon.gicon = new Gio.ThemedIcon({ name: 'applications-system-symbolic' });
+            // this._sourceIcon.gicon = params.gicon;
             this._icon.gicon = params.gicon;
         }
 
         this.silent = params.silent;
-
-        // if (this._icon && params.icon) {
-        //     this._icon.destroy();
-        //     this._icon = null;
-        // }
-
-        // if (!this._icon) {
-        //     this._icon = params.icon || this.source.createNotificationIcon();
-        //     // this._iconBin.set_child(this._icon);
-        //     // this._table.add(this._icon, {
-        //     //     row: 0,
-        //     //     col: 0,
-        //     //     x_expand: false,
-        //     //     y_expand: false,
-        //     //     y_fill: false,
-        //     //     y_align: St.Align.START
-        //     // });
-        // }
 
         // title: strip newlines, escape or validate markup, add bold markup
         if (typeof (title) === "string") {
@@ -523,7 +414,6 @@ var Notification = class Notification {
             this.title = "";
         }
         this.titleLabel.set_text(this.title);
-        // this._titleLabel.clutter_text.set_markup('<b>' + this.title + '</b>');
 
         // this._timeLabel.clutter_text.set_markup(this._timestamp.toLocaleTimeString());
         // this._timeLabel.hide();
@@ -533,64 +423,12 @@ var Notification = class Notification {
 
     _setBodyArea(text, allowMarkup) {
         if (text) {
-            // if (!this._scrollArea) {
-            //     /* FIXME: vscroll should be enabled
-            //      * -vfade covers too much for this size of scrollable
-            //      * -scrollview min-height is broken inside tray with a scrollview
-            //      *
-            //      * TODO: when scrollable:
-            //      *
-            //      * applet connects to this signal to enable captured-event passthru so you can grab the scrollbar:
-            //      * let vscroll = this._scrollArea.get_vscroll_bar();
-            //      * vscroll.connect('scroll-start', () => { this.emit('scrolling-changed', true) });
-            //      * vscroll.connect('scroll-stop', () => { this.emit('scrolling-changed', false) });
-            //      *
-            //      * `enable_mouse_scrolling` makes it difficult to scroll when there are many notifications
-            //      * in the tray because most of the area is these smaller scrollviews which capture the event.
-            //      * ideally, this should only be disabled when the notification is in the tray and there are
-            //      * many notifications.
-            //      */
-            //     this._scrollArea = new St.ScrollView({
-            //         name: 'notification-scrollview',
-            //         vscrollbar_policy: St.PolicyType.NEVER,
-            //         hscrollbar_policy: St.PolicyType.NEVER,
-            //         enable_mouse_scrolling: false/*,
-            //                                            style_class: 'vfade'*/ });
-
-            //     // this._table.add(this._scrollArea, {
-            //     //     row: 1,
-            //     //     col: 2
-            //     // });
-
-            //     // this._bodyLayout.add_actor(this._scrollArea);
-
-            //     let content = new St.BoxLayout({
-            //         // name: 'notification-body',
-            //         vertical: true
-            //     });
-            //     this._scrollArea.add_actor(content);
-
-            //     // body label
-            //     // this._bodyUrlHighlighter = new URLHighlighter("", true, false);
-            //     // content.add(this._bodyUrlHighlighter.actor);
-            // }
             this._bodyLabel.setMarkup(text, allowMarkup);
-        } else {
-            // if (this._bodyLabel) {
-            //     // this._scrollArea.destroy()
-            //     // this._scrollArea = null;
-            //     this._bodyLabel.actor.destroy();
-            //     this._bodyLabel = null;
-            // }
         }
         this._updateLayout();
     }
 
     setIconVisible(visible) {
-        global.log("__________");
-        global.log("setIconVisible");
-        global.log(this._icon);
-        global.log("__________");
         if (this._icon)
             this._icon.visible = visible;
     }
@@ -604,71 +442,10 @@ var Notification = class Notification {
     scrollTo(side) {
         if (true)
             return;
-        // let adjustment = this._scrollArea.vscroll.adjustment;
-        // if (side == St.Side.TOP)
-        //     adjustment.value = adjustment.lower;
-        // else if (side == St.Side.BOTTOM)
-        //     adjustment.value = adjustment.upper;
     }
 
     _updateLayout() {
-        // if (this._actionArea) {
-        //     this._notificationLayout.add_style_class_name('multi-line-notification');
-        // } else {
-        //     this._notificationLayout.remove_style_class_name('multi-line-notification');
-        // }
-
-        // if (this._imageBin) {
-        //     this._notificationLayout.add_style_class_name('notification-with-image');
-        // } else {
-        //     this._notificationLayout.remove_style_class_name('notification-with-image');
-        // }
-
-        // if (this._scrollArea)
-        //     this._table.child_set(this._scrollArea, {
-        //         col: this._imageBin ? 2 : 1,
-        //         col_span: this._imageBin ? 2 : 3
-        //     });
-        // if (this._actionArea)
-        //     this._table.child_set(this._actionArea, {
-        //         col: this._imageBin ? 2 : 1,
-        //         col_span: this._imageBin ? 2 : 3
-        //     });
     }
-
-    // setImage(image) {
-    //     if (this._imageBin)
-    //         this.unsetImage();
-    //     if (!image)
-    //         return;
-    //     this._imageBin = new St.Bin({
-    //         child: image,
-    //         // opacity: NOTIFICATION_IMAGE_OPACITY
-    //         y_align: St.Align.START,
-    //         y_expand: false,
-    //         y_fill: false,
-    //     });
-    //     // this._table.add(this._imageBin, {
-    //     //     row: 1,
-    //     //     col: 1,
-    //     //     row_span: 2,
-    //     //     x_expand: false,
-    //     //     y_expand: false,
-    //     //     x_fill: false,
-    //     //     y_fill: false
-    //     // });
-
-    //     this._bodyLayout.insert_actor(this._imageBin, 0);
-    //     this._updateLayout();
-    // }
-
-    // unsetImage() {
-    //     if (!this._imageBin)
-    //         return;
-    //     this._imageBin.destroy();
-    //     this._imageBin = null;
-    //     this._updateLayout();
-    // }
 
     /**
      * addButton:
@@ -683,31 +460,8 @@ var Notification = class Notification {
      * %action-invoked signal with @id as a parameter.
      */
     addButton(id, label) {
-        global.log("_________________ addButton _______________");
         if (!this._actionBin.visible)
             this._actionBin.visible = true;
-
-        global.log(this._actionBin.visible);
-        // if (!this._actionArea) {
-        //     this._actionArea = new St.Widget({
-        //         layout_manager: new Clutter.BoxLayout({
-        //             homogeneous: true,
-        //             spacing: 12,
-        //         }),
-        //     });
-            // this._actionArea = new St.BoxLayout({ name: 'notification-actions' });
-            // this._table.add(this._actionArea, {
-            //     row: 2,
-            //     col: 1,
-            //     col_span: 3,
-            //     x_expand: true,
-            //     y_expand: false,
-            //     x_fill: true,
-            //     y_fill: false,
-            //     x_align: St.Align.MIDDLE
-            // });
-        //     this._notificationLayout.add_actor(this._actionArea);
-        // }
 
         let button = new St.Button({
             can_focus: true,
@@ -777,8 +531,8 @@ var Notification = class Notification {
         }
     }
 
-    _onClicked() {
-        this.emit('clicked');
+    activate() {
+        this.emit('activated');
         // We hide all types of notifications once the user clicks on them because the common
         // outcome of clicking should be the relevant window being brought forward and the user's
         // attention switching to the window.
@@ -794,20 +548,39 @@ var Notification = class Notification {
         if (!this._destroyedReason)
             this._destroyedReason = NotificationDestroyedReason.DISMISSED;
         this.emit('destroy', this._destroyedReason);
-        this.disconnectAll();
+        // this.disconnectAll();
     }
 
     destroy(reason) {
         this._destroyedReason = reason;
         this.actor.destroy();
     }
-};
-Signals.addSignalMethods(Notification.prototype);
+});
 
-var Source = class Source {
-    constructor(title) {
-        ICON_SIZE: 24;
-        MAX_NOTIFICATIONS: 10;
+var Source = GObject.registerClass({
+    GTypeName: 'MessageTray_Source',
+    Properties: {
+        'count': GObject.ParamSpec.int(
+            'count', 'count', 'count',
+            GObject.ParamFlags.READABLE,
+            0, GLib.MAXINT32, 0),
+        'title': GObject.ParamSpec.string(
+            'title', 'title', 'title',
+            GObject.ParamFlags.READWRITE,
+            null),
+    },
+    Signals: {
+        'destroy': { param_types: [GObject.TYPE_UINT] },
+        'icon-updated': {},
+        'notification-added': { param_types: [Notification.$gtype] },
+        'notification-show': { param_types: [Notification.$gtype] },
+    }
+}, class Source extends GObject.Object {
+    _init(title) {
+        super._init({ title: title });
+
+        this.ICON_SIZE = 24;
+        this.MAX_NOTIFICATIONS = 10;
 
         this.title = title;
         this.icon = null;
@@ -825,12 +598,24 @@ var Source = class Source {
         this.notifications = [];
     }
 
+    get count() {
+        return this.notifications.length;
+    }
+
     _updateCount() {
         let count = this.notifications.length;
         if (count > this.MAX_NOTIFICATIONS) {
             let oldestNotif = this.notifications.shift();
             oldestNotif.destroy();
         }
+    }
+
+    setTitle(newTitle) {
+        if (this.title == newTitle)
+            return;
+
+        this.title = newTitle;
+        this.notify('title');
     }
 
     setTransient(isTransient) {
@@ -856,7 +641,7 @@ var Source = class Source {
             this.emit('notification-added', notification);
         }
 
-        notification.connect('clicked', () => { this.open() });
+        notification.connect('activated', () => { this.open() });
         notification.connect('destroy', () => {
             let index = this.notifications.indexOf(notification);
             if (index < 0)
@@ -870,9 +655,24 @@ var Source = class Source {
         this._updateCount();
     }
 
-    notify(notification) {
+    showNotification(notification) {
         this.pushNotification(notification);
-        this.emit('notify', notification);
+        this.emit('notification-show', notification);
+    }
+
+    notify(propName) {
+        if (propName instanceof Notification) {
+            try {
+                throw new Error('Source.notify() has been moved to Source.showNotification()' +
+                                'this code will break in the future.');
+            } catch (e) {
+                logError(e);
+                this.showNotification(propName);
+                return;
+            }
+        }
+
+        super.notify(propName);
     }
 
     destroy(reason) {
@@ -883,13 +683,13 @@ var Source = class Source {
 
     // The subclass must call this at least once to set the summary icon.
     _setSummaryIcon(icon) {
-        global.log("__________");
-        global.log("set summary icon");
+        // global.log("__________");
+        // global.log("set summary icon");
         if (this.icon)
             this.icon.destroy();
         this.icon = icon;
-        global.log(this.icon);
-        global.log("__________");
+        // global.log(this.icon);
+        // global.log("__________");
     }
 
     // Default implementation is to do nothing, but subclasses can override
@@ -906,8 +706,8 @@ var Source = class Source {
     _lastNotificationRemoved() {
         this.destroy();
     }
-};
-Signals.addSignalMethods(Source.prototype);
+});
+// Signals.addSignalMethods(Source.prototype);
 
 // function MessageTray() {
 //     this._init();
@@ -983,7 +783,7 @@ var MessageTray = class MessageTray {
             return;
         }
 
-        source.connect('notify', this._onNotify.bind(this));
+        source.connect('notification-show', this._onNotify.bind(this));
 
         source.connect('destroy', this._onSourceDestroy.bind(this));
     }
@@ -1306,12 +1106,16 @@ var MessageTray = class MessageTray {
 };
 Signals.addSignalMethods(MessageTray.prototype);
 
-var SystemNotificationSource = class SystemNotificationSource extends Source {
-    constructor() {
-        super();
+// var SystemNotificationSource = class SystemNotificationSource extends Source {
+//     constructor() {
+//         super();
         // Source.prototype._init.call(this, _("System Information"));
+var SystemNotificationSource = GObject.registerClass(
+class SystemNotificationSource extends Source {
+    _init() {
+        super._init(_("System Information"));
 
-        this._setSummaryIcon(this.createNotificationIcon());
+        // this._setSummaryIcon(this.createNotificationIcon());
     }
 
     createNotificationIcon() {
@@ -1321,4 +1125,4 @@ var SystemNotificationSource = class SystemNotificationSource extends Source {
     open() {
         this.destroy();
     }
-};
+});

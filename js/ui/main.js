@@ -430,7 +430,7 @@ function start() {
     _initUserSession();
     screenRecorder = new ScreenRecorder.ScreenRecorder();
 
-    if (Meta.is_wayland_compositor()) {
+    if (true) {
         PolkitAuthenticationAgent.init();
     }
 
@@ -524,9 +524,10 @@ function updateAnimationsEnabled() {
 }
 
 function notifyCinnamon2d() {
-    let icon = new St.Icon({ icon_name: 'driver-manager',
-                             icon_type: St.IconType.FULLCOLOR,
-                             icon_size: 36 });
+    let icon = new Gio.ThemedIcon ({ name: 'driver-manager' });
+    // let icon = new St.Icon({ icon_name: 'driver-manager',
+    //                          icon_type: St.IconType.FULLCOLOR,
+    //                          icon_size: 36 });
     let notification =
         criticalNotify(_("Check your video drivers"),
                        _("Your system is currently running without video hardware acceleration.") +
@@ -541,9 +542,10 @@ function notifyCinnamon2d() {
 }
 
 function notifyXletStartupError() {
-    let icon = new St.Icon({ icon_name: 'dialog-warning',
-                             icon_type: St.IconType.FULLCOLOR,
-                             icon_size: 36 });
+    let icon = new Gio.ThemedIcon ({ name: 'dialog-warning' });
+    // let icon = new St.Icon({ icon_name: 'dialog-warning',
+    //                          icon_type: St.IconType.FULLCOLOR,
+    //                          icon_size: 36 });
     warningNotify(_("Problems during Cinnamon startup"),
                   _("Cinnamon started successfully, but one or more applets, desklets or extensions failed to load.\n\n") +
                   _("Check your system log and the Cinnamon LookingGlass log for any issues.  ") +
@@ -752,7 +754,7 @@ function notify(msg, details) {
     messageTray.add(source);
     let notification = new MessageTray.Notification(source, msg, details);
     notification.setTransient(true);
-    source.notify(notification);
+    source.showNotification(notification);
 }
 
 /**
@@ -760,13 +762,13 @@ function notify(msg, details) {
  * @msg: A critical message
  * @details: Additional information
  */
-function criticalNotify(msg, details, icon) {
+function criticalNotify(msg, details, gicon) {
     let source = new MessageTray.SystemNotificationSource();
     messageTray.add(source);
-    let notification = new MessageTray.Notification(source, msg, details, { icon: icon });
+    let notification = new MessageTray.Notification(source, msg, details, { gicon: gicon });
     notification.setTransient(false);
     notification.setUrgency(MessageTray.Urgency.CRITICAL);
-    source.notify(notification);
+    source.showNotification(notification);
     return notification;
 }
 
@@ -779,13 +781,13 @@ function launchDriverManager() {
  * @msg: A warning message
  * @details: Additional information
  */
-function warningNotify(msg, details, icon) {
+function warningNotify(msg, details, gicon) {
     let source = new MessageTray.SystemNotificationSource();
     messageTray.add(source);
-    let notification = new MessageTray.Notification(source, msg, details, { icon: icon });
+    let notification = new MessageTray.Notification(source, msg, details, { gicon: gicon });
     notification.setTransient(false);
     notification.setUrgency(MessageTray.Urgency.HIGH);
-    source.notify(notification);
+    source.showNotification(notification);
 }
 
 /**

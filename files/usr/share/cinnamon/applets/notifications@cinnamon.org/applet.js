@@ -132,7 +132,7 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
             } else {
                 notification._inNotificationBin = true;
                 global.reparentActor(notification.actor, this._notificationbin);
-                notification._timeLabel.show();
+                // notification._timeLabel.show();
             }
             this.update_list();
             return;
@@ -147,14 +147,14 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         notification.actor._parent_container = this._notificationbin;
         notification.actor.add_style_class_name('notification-applet-padding');
         // Register for destruction.
-        notification.connect('scrolling-changed', (notif, scrolling) => { this.menu.passEvents = scrolling });
+        // notification.connect('scrolling-changed', (notif, scrolling) => { this.menu.passEvents = scrolling });
         notification.connect('destroy', () => {
             let i = this.notifications.indexOf(notification);
             if (i != -1)
                 this.notifications.splice(i, 1);
             this.update_list();
         });
-        notification._timeLabel.show();
+        // notification._timeLabel.show();
 
         this.update_list();
     }
@@ -271,7 +271,7 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
             for (let i = 0; i < len; i++) {
                 let notification = this.notifications[i];
                 let orig_time = notification._timestamp;
-                notification._timeLabel.clutter_text.set_markup(timeify(orig_time));
+                // notification._timeLabel.clutter_text.set_markup(timeify(orig_time));
             }
         }
     }
