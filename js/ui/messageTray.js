@@ -244,6 +244,7 @@ var Notification = GObject.registerClass({
         'action-invoked': { param_types: [GObject.TYPE_UINT] },
         'done-displaying': {},
         'destroy': { param_types: [GObject.TYPE_UINT] },
+        'updated': { param_types: [GObject.TYPE_BOOLEAN] },
     }
 }, class Notification extends GObject.Object {
     _init(source, title, body, params) {
@@ -399,11 +400,11 @@ var Notification = GObject.registerClass({
             silent: false
         });
 
-        if (params.gicon) {
-            this._sourceIcon.gicon = new Gio.ThemedIcon({ name: 'applications-system-symbolic' });
-            // this._sourceIcon.gicon = params.gicon;
-            this._icon.gicon = params.gicon;
-        }
+        // if (params.gicon) {
+        //     this._sourceIcon.gicon = new Gio.ThemedIcon({ name: 'applications-system-symbolic' });
+        //     // this._sourceIcon.gicon = params.gicon;
+        //     this._icon.gicon = params.gicon;
+        // }
 
         this.silent = params.silent;
 
@@ -415,10 +416,14 @@ var Notification = GObject.registerClass({
         }
         this.titleLabel.set_text(this.title);
 
+        if (params.gicon)
+            this._sourceIcon.gicon = params.gicon;
+
         // this._timeLabel.clutter_text.set_markup(this._timestamp.toLocaleTimeString());
         // this._timeLabel.hide();
 
         this._setBodyArea(body, params.bodyMarkup);
+        this.emit('updated', true);
     }
 
     _setBodyArea(text, allowMarkup) {
@@ -483,6 +488,7 @@ var Notification = GObject.registerClass({
 
         this._actionBin.add_actor(button);
         this._buttonFocusManager.add_group(this._actionBin);
+        global.log(id);
         button.connect('clicked', Lang.bind(this, this._onActionInvoked, id));
         // button.connect('clicked', () => {
         //     this._onActionInvoked(button, mouseButtonClicked, id);
@@ -568,22 +574,30 @@ var Source = GObject.registerClass({
             'title', 'title', 'title',
             GObject.ParamFlags.READWRITE,
             null),
+        'icon': GObject.ParamSpec.object(
+            'icon', 'icon', 'icon',
+            GObject.ParamFlags.READWRITE,
+            Gio.Icon),
+        'icon-name': GObject.ParamSpec.string(
+            'icon-name', 'icon-name', 'icon-name',
+            GObject.ParamFlags.READWRITE,
+            null),
     },
     Signals: {
         'destroy': { param_types: [GObject.TYPE_UINT] },
-        'icon-updated': {},
         'notification-added': { param_types: [Notification.$gtype] },
         'notification-show': { param_types: [Notification.$gtype] },
     }
 }, class Source extends GObject.Object {
-    _init(title) {
-        super._init({ title: title });
+    constructor(params) {
+        super(params);
 
         this.ICON_SIZE = 24;
         this.MAX_NOTIFICATIONS = 10;
 
-        this.title = title;
-        this.icon = null;
+        // this.title = title;
+        // if (iconName)
+        //     this.icon = new Gio.ThemedIcon({ name: iconName });
 
         this.actor = new St.Bin({
             x_fill: true,
@@ -610,16 +624,19 @@ var Source = GObject.registerClass({
         }
     }
 
-    setTitle(newTitle) {
-        if (this.title == newTitle)
-            return;
-
-        this.title = newTitle;
-        this.notify('title');
-    }
-
     setTransient(isTransient) {
         this.isTransient = isTransient;
+    }
+
+    get iconName() {
+        if (this.gicon instanceof Gio.ThemedIcon)
+            return this.gicon.iconName;
+        else
+            return null;
+    }
+
+    set iconName(iconName) {
+        this.icon = new Gio.ThemedIcon({name: iconName});
     }
 
     // Called to create a new icon actor (of size this.ICON_SIZE).
@@ -1112,14 +1129,11 @@ Signals.addSignalMethods(MessageTray.prototype);
         // Source.prototype._init.call(this, _("System Information"));
 var SystemNotificationSource = GObject.registerClass(
 class SystemNotificationSource extends Source {
-    _init() {
-        super._init(_("System Information"));
-
-        // this._setSummaryIcon(this.createNotificationIcon());
-    }
-
-    createNotificationIcon() {
-        return new Gio.ThemedIcon ({ name: 'dialog-information' });
+    constructor() {
+        super({
+            title: _('System Information'),
+            iconName: 'dialog-information-symbolic',
+        });
     }
 
     open() {

@@ -185,12 +185,12 @@ var NotificationDaemon = class NotificationDaemon {
         // and never add it to this._sources .
         if (!isForTransientNotification) {
             let source = this._lookupSource(title, pid);
-            if (source) {
+            if (source)
                 return source;
-            }
         }
 
-        let source = new NotificationSource(title, pid, sender, ndata ? ndata.hints['desktop-entry'] : null);
+        const appId = ndata?.hints['desktop-entry'];
+        let source = new NotificationSource(title, pid, sender, appId);
         source.setTransient(isForTransientNotification);
 
         if (!isForTransientNotification) {
@@ -238,7 +238,7 @@ var NotificationDaemon = class NotificationDaemon {
 
     // Sends a notification to the notification daemon. Returns the id allocated to the notification.
     NotifyAsync(params, invocation) {
-        let [appName, replacesId, icon, summary, body, actions, hints, timeout] = params;
+        let [appName, replacesId, appIcon, summary, body, actions, hints, timeout] = params;
         let id;
 
         for (let hint in hints) {
@@ -264,13 +264,15 @@ var NotificationDaemon = class NotificationDaemon {
 
         hints['suppress-sound'] = hints.maybeGet('suppress-sound') == true;
 
-        let ndata = { appName: appName,
-                      icon: icon,
-                      summary: summary,
-                      body: body,
-                      actions: actions,
-                      hints: hints,
-                      timeout: timeout };
+        let ndata = {
+            appName,
+            appIcon,
+            summary,
+            body,
+            actions,
+            hints,
+            timeout
+        };
         // Does this notification replace another?
         if (replacesId != 0 && this._notifications[replacesId]) {
             ndata.id = id = replacesId;
@@ -357,7 +359,7 @@ var NotificationDaemon = class NotificationDaemon {
     }
 
     _notifyForSource(source, ndata) {
-        let [id, icon, summary, body, actions, hints, notification, timeout, expires] =
+        let [id, appIcon, summary, body, actions, hints, notification, timeout, expires] =
             [ndata.id, ndata.icon, ndata.summary, ndata.body,
              ndata.actions, ndata.hints, ndata.notification, ndata.timeout, ndata.expires];
 
@@ -425,14 +427,13 @@ var NotificationDaemon = class NotificationDaemon {
         //     notification.unsetImage();
         // }
 
-        let gicon = this._imageForNotificationData(hints);
+        const gicon = this._imageForNotificationData(hints);
 
-        if (!gicon)
-            gicon = this._iconForNotificationData(icon);
-
-        notification.update(summary, body, { gicon,
-                                             bodyMarkup: true,
-                                             silent: hints['suppress-sound'] });
+        notification.update(summary, body, {
+            gicon,
+            bodyMarkup: true,
+            silent: hints['suppress-sound']
+        });
 
         notification.clearButtons();
 
@@ -463,12 +464,8 @@ var NotificationDaemon = class NotificationDaemon {
         // of the 'transient' hint with hints['transient'] rather than hints.transient
         notification.setTransient(hints.maybeGet('transient') == true);
 
-        let sourceGIcon = source.useNotificationIcon ? gicon : null;
-        global.log("______________");
-        global.log("sourceGIcon");
-        global.log(source.useNotificationIcon);
-        global.log(sourceGIcon);
-        global.log("______________");
+        // Only fallback to 'app-icon' when the source doesn't have a valid app
+        const sourceGIcon = source.app ? null : this._iconForNotificationData(appIcon);
         source.processNotification(notification, sourceGIcon);
     }
 
@@ -548,22 +545,31 @@ var NotificationDaemon = class NotificationDaemon {
 var NotificationSource = GObject.registerClass(
 class NotificationSource extends MessageTray.Source {
     _init(title, pid, sender, appId) {
-        super._init(title);
-
-        // MessageTray.Source.prototype._init.call(this, title);
-
         this.pid = pid;
         this.initialTitle = title;
         this.app = this._getApp(appId);
-        global.log("__________");
-        global.log("Source init");
-        global.log(this.app);
-        global.log("______________");
+        this._appIcon = null;
 
-        if (this.app)
-            this.title = this.app.get_name();
-        else
-            this.useNotificationIcon = true;
+        // Use app name as title if available, instead of whatever is provided
+        // through libnotify (usually garbage)
+        super._init({
+            title: this.app?.get_name() ?? title,
+        });
+
+        // super._init(title);
+
+        // MessageTray.Source.prototype._init.call(this, title);
+
+        // this.pid = pid;
+        // this.initialTitle = title;
+        // this.app = this._getApp(appId);
+        // global.log("__________");
+        // global.log("Source init");
+        // global.log(this.app);
+        // global.log("______________");
+
+        // if (this.app)
+        //     this.title = this.app.get_name();
 
         if (sender)
             this._nameWatcherId = Gio.DBus.session.watch_name(sender,
@@ -584,11 +590,15 @@ class NotificationSource extends MessageTray.Source {
             this.destroy();
     }
 
-    processNotification(notification, icon) {
-        if (!this.app)
-            this._setApp();
-        if (!this.app && icon)
-            this._setSummaryIcon(icon);
+    processNotification(notification, appIcon) {
+        if (!this.app && appIcon) {
+            this._appIcon = appIcon;
+            this.notify('icon');
+        }
+        // if (!this.app)
+        //     this._setApp();
+        // if (!this.app && icon)
+        //     this._setSummaryIcon(icon);
 
         this.showNotification(notification);
     }
@@ -659,5 +669,9 @@ class NotificationSource extends MessageTray.Source {
             this._nameWatcherId = 0;
         }
         super.destroy();
+    }
+
+    get icon() {
+        return this.app?.get_icon() ?? this._appIcon;
     }
 });
