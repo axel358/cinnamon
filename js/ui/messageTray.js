@@ -563,13 +563,8 @@ var Notification = GObject.registerClass({
     }
 });
 
-var Source = GObject.registerClass({
-    GTypeName: 'MessageTray_Source',
+var BaseSource = GObject.registerClass({
     Properties: {
-        'count': GObject.ParamSpec.int(
-            'count', 'count', 'count',
-            GObject.ParamFlags.READABLE,
-            0, GLib.MAXINT32, 0),
         'title': GObject.ParamSpec.string(
             'title', 'title', 'title',
             GObject.ParamFlags.READWRITE,
@@ -583,12 +578,33 @@ var Source = GObject.registerClass({
             GObject.ParamFlags.READWRITE,
             null),
     },
+}, class BaseSource extends GObject.Object {
+    get iconName() {
+        if (this.gicon instanceof Gio.ThemedIcon)
+            return this.gicon.iconName;
+        else
+            return null;
+    }
+
+    set iconName(iconName) {
+        this.icon = new Gio.ThemedIcon({name: iconName});
+    }
+});
+
+var Source = GObject.registerClass({
+    GTypeName: 'MessageTray_Source',
+    Properties: {
+        'count': GObject.ParamSpec.int(
+            'count', 'count', 'count',
+            GObject.ParamFlags.READABLE,
+            0, GLib.MAXINT32, 0),
+    },
     Signals: {
         'destroy': { param_types: [GObject.TYPE_UINT] },
         'notification-added': { param_types: [Notification.$gtype] },
         'notification-show': { param_types: [Notification.$gtype] },
     }
-}, class Source extends GObject.Object {
+}, class Source extends BaseSource {
     constructor(params) {
         super(params);
 
@@ -628,16 +644,16 @@ var Source = GObject.registerClass({
         this.isTransient = isTransient;
     }
 
-    get iconName() {
-        if (this.gicon instanceof Gio.ThemedIcon)
-            return this.gicon.iconName;
-        else
-            return null;
-    }
+    // get iconName() {
+    //     if (this.gicon instanceof Gio.ThemedIcon)
+    //         return this.gicon.iconName;
+    //     else
+    //         return null;
+    // }
 
-    set iconName(iconName) {
-        this.icon = new Gio.ThemedIcon({name: iconName});
-    }
+    // set iconName(iconName) {
+    //     this.icon = new Gio.ThemedIcon({name: iconName});
+    // }
 
     // Called to create a new icon actor (of size this.ICON_SIZE).
     // Must be overridden by the subclass if you do not pass icons
