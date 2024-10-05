@@ -417,7 +417,7 @@ var Notification = GObject.registerClass({
         this.titleLabel.set_text(this.title);
 
         if (params.gicon)
-            this._sourceIcon.gicon = params.gicon;
+            this._icon.gicon = params.gicon;
 
         // this._timeLabel.clutter_text.set_markup(this._timestamp.toLocaleTimeString());
         // this._timeLabel.hide();
