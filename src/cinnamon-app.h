@@ -43,6 +43,7 @@ GMenuTreeEntry *cinnamon_app_get_tree_entry (CinnamonApp *app);
 GMenuDesktopAppInfo *cinnamon_app_get_app_info (CinnamonApp *app);
 ClutterActor *cinnamon_app_create_icon_texture (CinnamonApp *app,
                                                 int          size);
+GIcon *cinnamon_app_get_icon (CinnamonApp *app);
 ClutterActor *cinnamon_app_create_icon_texture_for_window (CinnamonApp   *app,
                                                            int            size,
                                                            MetaWindow    *for_window);

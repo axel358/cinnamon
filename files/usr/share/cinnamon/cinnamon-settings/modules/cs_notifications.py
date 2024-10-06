@@ -45,7 +45,7 @@ class Module:
 
         print("Loading Notifications module")
 
-        Notify.init("cinnamon-settings-notifications-test")
+        Notify.init("cinnamon-settings")
 
         page = SettingsPage()
         self.sidePage.add_widget(page)

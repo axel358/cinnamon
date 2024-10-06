@@ -206,6 +206,58 @@ var URLHighlighter = class URLHighlighter {
     }
 };
 
+var NotificationHeader = GObject.registerClass(
+class NotificationHeader extends St.BoxLayout {
+    constructor(source) {
+        super({
+            style_class: 'message-header',
+            x_expand: true,
+        });
+
+        const sourceIconEffect = new Clutter.DesaturateEffect();
+        const sourceIcon = new St.Icon({
+            style_class: 'message-source-icon',
+            y_align: Clutter.ActorAlign.CENTER,
+            fallback_icon_name: 'application-x-executable-symbolic',
+        });
+        sourceIcon.add_effect(sourceIconEffect);
+        this.add_child(sourceIcon);
+
+        const headerContent = new St.BoxLayout({
+            style_class: 'message-header-content',
+            y_align: Clutter.ActorAlign.CENTER,
+            x_expand: true,
+        });
+        this.add_child(headerContent);
+
+        this.closeButton = new St.Button({
+            style_class: 'message-close-button',
+            icon_name: 'window-close-symbolic',
+            y_align: Clutter.ActorAlign.CENTER,
+            // opacity: 0,
+        });
+        this.add_child(this.closeButton);
+
+        const sourceTitle = new St.Label({
+            style_class: 'message-source-title',
+            y_align: Clutter.ActorAlign.END,
+        });
+        headerContent.add_child(sourceTitle);
+
+        source.bind_property_full('title',
+            sourceTitle,
+            'text',
+            GObject.BindingFlags.SYNC_CREATE,
+            // Translators: this is the string displayed in the header when a message
+            // source doesn't have a name
+            (bind, value) => [true, value === null || value === '' ? _('Unknown App') : value],
+            null);
+        source.bind_property('icon',
+            sourceIcon,
+            'gicon',
+            GObject.BindingFlags.SYNC_CREATE);
+    }
+});
 
 /**
  * #Notification:
@@ -235,8 +287,7 @@ var URLHighlighter = class URLHighlighter {
  * with an URGENT priority will always play a sound effect if there is
  * one set.
  */
-// var Notification = class Notification {
-//     constructor(source, title, body, params) {
+
 var Notification = GObject.registerClass({
     GTypeName: 'MessageTray_Notification',
     Signals: {
@@ -286,47 +337,9 @@ var Notification = GObject.registerClass({
         });
         this.actor.set_child(vbox);
 
-
-        // Header Layout
-        this._header = new St.BoxLayout({
-            style_class: 'message-header',
-            x_expand: true,
-        });
-
-
-        // global.log("Setting the icon in notif init");
-        // global.log(this.gicon);
-        this._sourceIcon = new St.Icon({
-            style_class: 'message-source-icon',
-            y_align: Clutter.ActorAlign.CENTER,
-            // gicon: this.gicon,
-        });
-        this._header.add_child(this._sourceIcon);
-
-        const headerContent = new St.BoxLayout({
-            style_class: 'message-header-content',
-            y_align: Clutter.ActorAlign.CENTER,
-            x_expand: true,
-        });
-        this._header.add_child(headerContent);
-
-        this.closeButton = new St.Button({
-            style_class: 'message-close-button',
-            child: new St.Icon({ icon_name: 'window-close-symbolic' }),
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-        this._header.add_child(this.closeButton);
-
-        const sourceTitle = new St.Label({
-            style_class: 'message-source-title',
-            y_align: Clutter.ActorAlign.END,
-            text: source.title,
-        });
-        headerContent.add_child(sourceTitle);
-
+        this._header = new NotificationHeader(source);
         vbox.add_child(this._header);
 
-        // Body Layout
         const hbox = new St.BoxLayout({
             style_class: 'message-box',
         });
@@ -372,11 +385,17 @@ var Notification = GObject.registerClass({
         });
         contentBox.add_child(this._bodyBin);
 
+        // this._header.closeButton.connect('clicked', this.close.bind(this));
+
         this._buttonFocusManager = St.FocusManager.get_for_stage(global.stage);
 
         if (arguments.length != 1)
             this.update(title, body, params);
     }
+
+    // close() {
+    //     this.emit('close');
+    // }
 
     // for backwards compatibility with old class constant
     get IMAGE_SIZE() { return NOTIFICATION_IMAGE_SIZE; }
@@ -643,17 +662,6 @@ var Source = GObject.registerClass({
     setTransient(isTransient) {
         this.isTransient = isTransient;
     }
-
-    // get iconName() {
-    //     if (this.gicon instanceof Gio.ThemedIcon)
-    //         return this.gicon.iconName;
-    //     else
-    //         return null;
-    // }
-
-    // set iconName(iconName) {
-    //     this.icon = new Gio.ThemedIcon({name: iconName});
-    // }
 
     // Called to create a new icon actor (of size this.ICON_SIZE).
     // Must be overridden by the subclass if you do not pass icons
