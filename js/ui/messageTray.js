@@ -31,6 +31,8 @@ var LONGER_HIDE_TIMEOUT = 600;
 const NOTIFICATION_IMAGE_SIZE = 125;
 const NOTIFICATION_IMAGE_OPACITY = 230; // 0 - 255
 
+const DEFAULT_EXPAND_LINES = 6;
+
 var State = {
     HIDDEN: 0,
     SHOWING: 1,
@@ -80,14 +82,23 @@ function _fixMarkup(text, allowMarkup) {
     return GLib.markup_escape_text(text, -1);
 }
 
-var URLHighlighter = class URLHighlighter {
-    constructor(text, lineWrap, allowMarkup) {
-        if (!text)
-            text = '';
-        this.actor = new St.Label({ reactive: true, style_class: 'url-highlighter' });
+const URLHighlighter = GObject.registerClass(
+class URLHighlighter extends St.Label {
+// var URLHighlighter = class URLHighlighter {
+//     constructor(text, lineWrap, allowMarkup) {
+//         if (!text)
+//             text = '';
+    _init(text = '', lineWrap, allowMarkup) {
+        super._init({
+            reactive: true,
+            style_class: 'url-highlighter',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.START,
+        });
+        // this.actor = new St.Label({ reactive: true, style_class: 'url-highlighter' });
         this._linkColor = '#ccccff';
-        this.actor.connect('style-changed', () => {
-            let [hasColor, color] = this.actor.get_theme_node().lookup_color('link-color', false);
+        this.connect('style-changed', () => {
+            let [hasColor, color] = this.get_theme_node().lookup_color('link-color', false);
             if (hasColor) {
                 let linkColor = color.to_string().substr(0, 7);
                 if (linkColor != this._linkColor) {
@@ -96,77 +107,143 @@ var URLHighlighter = class URLHighlighter {
                 }
             }
         });
-        if (lineWrap) {
-            this.actor.clutter_text.line_wrap = true;
-            this.actor.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-            this.actor.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-        }
+        this.clutter_text.line_wrap = lineWrap;
+        this.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+        // if (lineWrap) {
+        //     this.actor.clutter_text.line_wrap = true;
+        //     this.actor.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
+        //     this.actor.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+        // }
 
         this.setMarkup(text, allowMarkup);
-        this.actor.connect('button-press-event', (actor, event) => {
-            // Don't try to URL highlight when invisible.
-            // The MessageTray doesn't actually hide us, so
-            // we need to check for paint opacities as well.
-            if (!actor.visible || actor.get_paint_opacity() == 0)
-                return false;
+        // this.actor.connect('button-press-event', (actor, event) => {
+        //     // Don't try to URL highlight when invisible.
+        //     // The MessageTray doesn't actually hide us, so
+        //     // we need to check for paint opacities as well.
+        //     if (!actor.visible || actor.get_paint_opacity() == 0)
+        //         return false;
 
-            // Keep Notification.actor from seeing this and taking
-            // a pointer grab, which would block our button-release-event
-            // handler, if an URL is clicked
-            return this._findUrlAtPos(event) != -1;
-        });
-        this.actor.connect('button-release-event', (actor, event) => {
-            if (!actor.visible || actor.get_paint_opacity() == 0)
-                return false;
+        //     // Keep Notification.actor from seeing this and taking
+        //     // a pointer grab, which would block our button-release-event
+        //     // handler, if an URL is clicked
+        //     return this._findUrlAtPos(event) != -1;
+        // });
+        // this.actor.connect('button-release-event', (actor, event) => {
+        //     if (!actor.visible || actor.get_paint_opacity() == 0)
+        //         return false;
 
-            let urlId = this._findUrlAtPos(event);
-            if (urlId != -1) {
-                let url = this._urls[urlId].url;
-                if (url.indexOf(':') == -1)
-                    url = 'http://' + url;
-                try {
-                    Gio.app_info_launch_default_for_uri(url, global.create_app_launch_context());
-                    return true;
-                } catch (e) {
-                    // TODO: remove this after gnome 3 release
-                    Util.spawn(['gio', 'open', url]);
-                    return true;
+        //     let urlId = this._findUrlAtPos(event);
+        //     if (urlId != -1) {
+        //         let url = this._urls[urlId].url;
+        //         if (url.indexOf(':') == -1)
+        //             url = 'http://' + url;
+        //         try {
+        //             Gio.app_info_launch_default_for_uri(url, global.create_app_launch_context());
+        //             return true;
+        //         } catch (e) {
+        //             // TODO: remove this after gnome 3 release
+        //             Util.spawn(['gio', 'open', url]);
+        //             return true;
+        //         }
+        //     }
+        //     return false;
+        // });
+        // this.actor.connect('motion-event', (actor, event) => {
+        //     if (!actor.visible || actor.get_paint_opacity() == 0)
+        //         return false;
+
+        //     let urlId = this._findUrlAtPos(event);
+        //     if (urlId != -1 && !this._cursorChanged) {
+        //         global.set_cursor(Cinnamon.Cursor.POINTING_HAND);
+        //         this._cursorChanged = true;
+        //     } else if (urlId == -1) {
+        //         global.unset_cursor();
+        //         this._cursorChanged = false;
+        //     }
+        //     return false;
+        // });
+        // this.actor.connect('leave-event', () => {
+        //     if (!this.actor.visible || this.actor.get_paint_opacity() == 0)
+        //         return;
+
+        //     if (this._cursorChanged) {
+        //         this._cursorChanged = false;
+        //         global.unset_cursor();
+        //     }
+        // });
+    }
+
+    vfunc_button_press_event(event) {
+        // Don't try to URL highlight when invisible.
+        // The MessageTray doesn't actually hide us, so
+        // we need to check for paint opacities as well.
+        if (!this.visible || this.get_paint_opacity() === 0)
+            return Clutter.EVENT_PROPAGATE;
+
+        // Keep Notification from seeing this and taking
+        // a pointer grab, which would block our button-release-event
+        // handler, if an URL is clicked
+        return this._findUrlAtPos(event) !== -1;
+    }
+
+    vfunc_button_release_event(event) {
+        if (!this.visible || this.get_paint_opacity() === 0)
+            return Clutter.EVENT_PROPAGATE;
+
+        const urlId = this._findUrlAtPos(event);
+        if (urlId !== -1) {
+            let url = this._urls[urlId].url;
+            if (!url.includes(':'))
+                url = `http://${url}`;
+            try {
+                Gio.app_info_launch_default_for_uri(url, global.create_app_launch_context());
+                return true;
+            } catch (e) {
+                // TODO: remove this after gnome 3 release
+                Util.spawn(['gio', 'open', url]);
+                return true;
                 }
-            }
-            return false;
-        });
-        this.actor.connect('motion-event', (actor, event) => {
-            if (!actor.visible || actor.get_paint_opacity() == 0)
-                return false;
 
-            let urlId = this._findUrlAtPos(event);
-            if (urlId != -1 && !this._cursorChanged) {
-                global.set_cursor(Cinnamon.Cursor.POINTING_HAND);
-                this._cursorChanged = true;
-            } else if (urlId == -1) {
-                global.unset_cursor();
-                this._cursorChanged = false;
-            }
-            return false;
-        });
-        this.actor.connect('leave-event', () => {
-            if (!this.actor.visible || this.actor.get_paint_opacity() == 0)
-                return;
+            // Gio.app_info_launch_default_for_uri(
+            //     url, global.create_app_launch_context(0, -1));
+            // return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
 
-            if (this._cursorChanged) {
-                this._cursorChanged = false;
-                global.unset_cursor();
-            }
-        });
+    vfunc_motion_event(event) {
+        if (!this.visible || this.get_paint_opacity() === 0)
+            return Clutter.EVENT_PROPAGATE;
+
+        const urlId = this._findUrlAtPos(event);
+        if (urlId !== -1 && !this._cursorChanged) {
+            global.set_cursor(Cinnamon.Cursor.POINTING_HAND);
+            this._cursorChanged = true;
+        } else if (urlId === -1) {
+            global.unset_cursor();
+            this._cursorChanged = false;
+        }
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    vfunc_leave_event(event) {
+        if (!this.visible || this.get_paint_opacity() === 0)
+            return Clutter.EVENT_PROPAGATE;
+
+        if (this._cursorChanged) {
+            this._cursorChanged = false;
+            global.unset_cursor();
+        }
+        return super.vfunc_leave_event(event);
     }
 
     setMarkup(text, allowMarkup) {
         text = text ? _fixMarkup(text, allowMarkup) : '';
         this._text = text;
 
-        this.actor.clutter_text.set_markup(text);
+        this.clutter_text.set_markup(text);
         /* clutter_text.text contain text without markup */
-        this._urls = Util.findUrls(this.actor.clutter_text.text);
+        this._urls = Util.findUrls(this.clutter_text.text);
         this._highlightUrls();
     }
 
@@ -182,7 +259,7 @@ var URLHighlighter = class URLHighlighter {
             pos = url.pos + url.url.length;
         }
         markup += this._text.substr(pos);
-        this.actor.clutter_text.set_markup(markup);
+        this.clutter_text.set_markup(markup);
     }
 
     _findUrlAtPos(event) {
@@ -191,7 +268,7 @@ var URLHighlighter = class URLHighlighter {
 
         let success;
         let [x, y] = event.get_coords();
-        let ct = this.actor.clutter_text;
+        let ct = this.clutter_text;
         [success, x, y] = ct.transform_stage_point(x, y);
         if (success && x >= 0 && x <= ct.width
             && y >= 0 && y <= ct.height) {
@@ -204,7 +281,64 @@ var URLHighlighter = class URLHighlighter {
         }
         return -1;
     }
-};
+});
+
+const LabelExpanderLayout = GObject.registerClass({
+    Properties: {
+        'expansion': GObject.ParamSpec.double(
+            'expansion', 'Expansion', 'Expansion',
+            GObject.ParamFlags.READABLE | GObject.ParamFlags.WRITABLE,
+            0, 1, 0),
+    },
+}, class LabelExpanderLayout extends Clutter.BinLayout {
+    constructor(params) {
+        super(params);
+
+        this._expansion = 0;
+        this._expandLines = DEFAULT_EXPAND_LINES;
+    }
+
+    get expansion() {
+        return this._expansion;
+    }
+
+    set expansion(v) {
+        if (v === this._expansion)
+            return;
+        this._expansion = v;
+        this.notify('expansion');
+
+        this.layout_changed();
+    }
+
+    set expandLines(v) {
+        if (v === this._expandLines)
+            return;
+        this._expandLines = v;
+        if (this._expansion > 0)
+            this.layout_changed();
+    }
+
+    vfunc_get_preferred_height(container, forWidth) {
+        let [min, nat] = [0, 0];
+
+        const [child] = container;
+
+        if (child) {
+            [min, nat] = child.get_preferred_height(-1);
+
+            const [, nat2] = child.get_preferred_height(forWidth);
+            const expHeight =
+                Math.min(nat2, nat * this._expandLines);
+            [min, nat] = [
+                min + this._expansion * (expHeight - min),
+                nat + this._expansion * (expHeight - nat),
+            ];
+        }
+
+        return [min, nat];
+    }
+});
 
 var NotificationHeader = GObject.registerClass(
 class NotificationHeader extends St.BoxLayout {
@@ -320,6 +454,8 @@ var Notification = GObject.registerClass({
         this._timestamp = new Date();
         this._inNotificationBin = false;
 
+        this.expanded = false;
+
         source.connect('destroy', (source, reason) => { this.destroy(reason) });
 
         this.actor = new St.Button({
@@ -377,11 +513,12 @@ var Notification = GObject.registerClass({
         contentBox.add_child(this.titleLabel);
 
         this._bodyLabel = new URLHighlighter("", true, false);
-        this._bodyLabel.actor.add_style_class_name('message-body');
+        this._bodyLabel.add_style_class_name('message-body');
         this._bodyBin = new St.Bin({
             x_expand: true,
             x_fill: true,
-            child: this._bodyLabel.actor,
+            layout_manager: new LabelExpanderLayout(),
+            child: this._bodyLabel,
         });
         contentBox.add_child(this._bodyBin);
 
