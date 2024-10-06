@@ -254,11 +254,13 @@ CinnamonDBus.prototype = {
             monitorIndex = Main.layoutManager.findMonitorIndexAt(++x, ++y);
         }
 
+        let maxLevel = params['max_level'] || undefined;
+
         let icon = null;
         if (params['icon'])
             icon = Gio.Icon.new_for_string(params['icon']);
 
-        Main.osdWindowManager.show(monitorIndex, icon, params['label'], params['level'], false);
+        Main.osdWindowManager.show(monitorIndex, icon, params['label'], params['level'], maxLevel, false);
     },
 
     FlashArea: function(x, y, width, height) {

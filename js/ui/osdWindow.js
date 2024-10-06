@@ -103,6 +103,7 @@ class OsdWindow extends Clutter.Actor {
     }
 
     setMaxLevel(maxLevel = 1) {
+        maxLevel = maxLevel / 100;
         this._level.maximum_value = maxLevel;
     }
 
@@ -187,30 +188,35 @@ var OsdWindowManager = class {
         }
     }
 
-    _showOsdWindow(monitorIndex, icon, label, level) {
+    _showOsdWindow(monitorIndex, icon, label, level, maxLevel) {
         this._osdWindows[monitorIndex].setIcon(icon);
         this._osdWindows[monitorIndex].setLabel(label);
-        this._osdWindows[monitorIndex].setMaxLevel(1);
+        this._osdWindows[monitorIndex].setMaxLevel(maxLevel);
         this._osdWindows[monitorIndex].setLevel(level);
         this._osdWindows[monitorIndex].show();
     }
 
-    show(monitorIndex, icon, label, level, convertIndex) {
+    show(monitorIndex, icon, label, level, maxLevel, convertIndex) {
         if (this._osdWindows.length === 0)
             return;
+
+        global.log("Showing OSD _______");
+        global.log(maxLevel);
+        global.log(level);
+        global.log("____________________");
 
         if (monitorIndex !== -1) {
             if (convertIndex)
                 monitorIndex = convertGdkIndex(monitorIndex);
             for (let i = 0; i < this._osdWindows.length; i++) {
                 if (i === monitorIndex)
-                    this._showOsdWindow(i, icon, label, level);
+                    this._showOsdWindow(i, icon, label, level, maxLevel);
                 else
                     this._osdWindows[i].cancel();
             }
         } else {
             for (let i = 0; i < this._osdWindows.length; i++)
-                this._showOsdWindow(i, icon, label, level);
+                this._showOsdWindow(i, icon, label, level, maxLevel);
         }
     }
 
