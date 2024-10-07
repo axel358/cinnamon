@@ -95,26 +95,26 @@ var NotificationDaemon = class NotificationDaemon {
         this._sourceForPidAndName = new Map();
         this._notifications = new Map();
 
-        this._expireNotifications = []; // List of expiring notifications in order from first to last to expire.
-        this._busProxy = new Bus();
+        // this._expireNotifications = []; // List of expiring notifications in order from first to last to expire.
+        // this._busProxy = new Bus();
 
         this._nextNotificationId = 1;
 
-        this._expireTimer = 0;
+        // this._expireTimer = 0;
 
 // Settings
-        this.settings = new Gio.Settings({ schema_id: "org.cinnamon.desktop.notifications" });
-        function setting(self, source, type, camelCase, dashed) {
-            function updater() { self[camelCase] = source["get_"+type](dashed); }
-            source.connect('changed::'+dashed, updater);
-            updater();
-        }
-        setting(this, this.settings, "boolean", "removeOld", "remove-old");
-        setting(this, this.settings, "int", "timeout", "timeout");
+        // this.settings = new Gio.Settings({ schema_id: "org.cinnamon.desktop.notifications" });
+        // function setting(self, source, type, camelCase, dashed) {
+        //     function updater() { self[camelCase] = source["get_"+type](dashed); }
+        //     source.connect('changed::'+dashed, updater);
+        //     updater();
+        // }
+        // setting(this, this.settings, "boolean", "removeOld", "remove-old");
+        // setting(this, this.settings, "int", "timeout", "timeout");
 
         // Cinnamon.WindowTracker.get_default().connect('notify::focus-app',
         //     this._onFocusAppChanged.bind(this));
-        Main.overview.connect('hidden', this._onFocusAppChanged.bind(this));
+        // Main.overview.connect('hidden', this._onFocusAppChanged.bind(this));
     }
 
     _imageForNotificationData(hints) {
@@ -206,35 +206,35 @@ var NotificationDaemon = class NotificationDaemon {
         return source;
     }
 
-    _startExpire() {
-         if (this.removeOld && this._expireNotifications.length && !this._expireTimer) {
-            this._expireTimer = GLib.timeout_add_seconds(
-                GLib.PRIORITY_DEFAULT,
-                Math.max((this._expireNotifications[0].expires-Date.now())/1000, 1),
-                this._expireNotification.bind(this));
-        }
-    }
-    _stopExpire() {
-         if (this._expireTimer == 0) {
-            return;
-        }
-         GLib.source_remove(this._expireTimer);
-         this._expireTimer = 0;
-    }
-    _restartExpire() {
-         this._stopExpire();
-         this._startExpire();
-    }
-    _expireNotification() {
-        let ndata = this._expireNotifications[0];
+    // _startExpire() {
+    //      if (this.removeOld && this._expireNotifications.length && !this._expireTimer) {
+    //         this._expireTimer = GLib.timeout_add_seconds(
+    //             GLib.PRIORITY_DEFAULT,
+    //             Math.max((this._expireNotifications[0].expires-Date.now())/1000, 1),
+    //             this._expireNotification.bind(this));
+    //     }
+    // }
+    // _stopExpire() {
+    //      if (this._expireTimer == 0) {
+    //         return;
+    //     }
+    //      GLib.source_remove(this._expireTimer);
+    //      this._expireTimer = 0;
+    // }
+    // _restartExpire() {
+    //      this._stopExpire();
+    //      this._startExpire();
+    // }
+    // _expireNotification() {
+    //     let ndata = this._expireNotifications[0];
 
-        if (ndata) {
-            ndata.notification.destroy(MessageTray.NotificationDestroyedReason.EXPIRED);
-        }
+    //     if (ndata) {
+    //         ndata.notification.destroy(MessageTray.NotificationDestroyedReason.EXPIRED);
+    //     }
 
-        this._expireTimer = 0;
-        return false;
-    }
+    //     this._expireTimer = 0;
+    //     return false;
+    // }
 
     // Sends a notification to the notification daemon. Returns the id allocated to the notification.
     NotifyAsync(params, invocation) {
@@ -246,7 +246,7 @@ var NotificationDaemon = class NotificationDaemon {
             hints[hint] = hints[hint].deep_unpack();
         }
 
-        hints = Params.parse(hints, { urgency: Urgency.NORMAL }, true);
+        hints = {urgency: Urgency.NORMAL, ...hints};
 
         // Be compatible with the various hints for image data and image path
         // 'image-data' and 'image-path' are the latest name of these hints, introduced in 1.2
@@ -262,7 +262,7 @@ var NotificationDaemon = class NotificationDaemon {
                 hints['image-data'] = hints['icon_data'];
         }
 
-        hints['suppress-sound'] = hints.maybeGet('suppress-sound') == true;
+        // hints['suppress-sound'] = hints.maybeGet('suppress-sound') == true;
 
         let source, notification;
         if (replacesId !== 0 && this._notifications.has(replacesId)) {
@@ -270,8 +270,8 @@ var NotificationDaemon = class NotificationDaemon {
             source = notification.source;
             id = replacesId;
         } else {
-            const sender = invocation.get_sender();
-            const pid = this._senderToPid[sender];
+            const sender = hints['x-shell-sender'];
+            const pid = hints['x-shell-sender-pid'];
             const appId = hints['desktop-entry'];
             const app = this._getApp(pid, appId, appName);
 
@@ -280,7 +280,7 @@ var NotificationDaemon = class NotificationDaemon {
                 ? this._getSourceForApp(sender, app)
                 : this._getSourceForPidAndName(sender, pid, appName);
 
-            notification = new MessageTray.Notification(source);
+            notification = new MessageTray.Notification({ source });
             this._notifications.set(id, notification);
             notification.connect('destroy', (n, reason) => {
                 this._notifications.delete(id);
@@ -302,41 +302,80 @@ var NotificationDaemon = class NotificationDaemon {
 
         const gicon = this._imageForNotificationData(hints);
 
-        notification.update(summary, body, {
+        // notification.update(summary, body, {
+        //     gicon,
+        //     bodyMarkup: true,
+        //     silent: hints['suppress-sound']
+        // });
+
+        notification.set({
+            title: summary,
+            body,
             gicon,
-            bodyMarkup: true,
-            silent: hints['suppress-sound']
+            useBodyMarkup: true,
+            sound: null,
+            acknowledged: false,
         });
 
-        notification.clearButtons();
+        // notification.clearButtons();
+        notification.clearActions();
+
+        let hasDefaultAction = false;
 
         if (actions.length) {
-            notification.setUseActionIcons(hints.maybeGet('action-icons') == true);
+            // notification.setUseActionIcons(hints.maybeGet('action-icons') == true);
             for (let i = 0; i < actions.length - 1; i += 2) {
-                if (actions[i] == 'default')
-                    notification.connect('action-invoked', () => {
-                        this._emitActionInvoked(id, "default");
+                let [actionId, label] = [actions[i], actions[i + 1]];
+                if (actionId === 'default') {
+                    hasDefaultAction = true;
+                } else {
+                    notification.addAction(label, () => {
+                        // this._emitActivationToken(source, id);
+                        this._emitActionInvoked(id, actionId);
                     });
-                else
-                    notification.addButton(actions[i], actions[i + 1]);
+                }
+                // if (actions[i] == 'default')
+                //     notification.connect('action-invoked', () => {
+                //         this._emitActionInvoked(id, "default");
+                //     });
+                // else
+                //     notification.addButton(actions[i], actions[i + 1]);
             }
+        }
+
+        if (hasDefaultAction) {
+            notification.connect('activated', () => {
+                // this._emitActivationToken(source, id);
+                this._emitActionInvoked(id, 'default');
+            });
+        } else {
+            notification.connect('activated', () => {
+                source.open();
+            });
         }
 
         switch (hints.urgency) {
             case Urgency.LOW:
-                notification.setUrgency(MessageTray.Urgency.LOW);
+                notification.urgency = MessageTray.Urgency.LOW;
                 break;
             case Urgency.NORMAL:
-                notification.setUrgency(MessageTray.Urgency.NORMAL);
+                notification.urgency = MessageTray.Urgency.NORMAL;
                 break;
             case Urgency.CRITICAL:
-                notification.setUrgency(MessageTray.Urgency.CRITICAL);
+                notification.urgency = MessageTray.Urgency.CRITICAL;
                 break;
         }
-        notification.setResident(hints.maybeGet('resident') == true);
+        // notification.setResident(hints.maybeGet('resident') == true);
+        notification.resident = !!hints.resident;
         // 'transient' is a reserved keyword in JS, so we have to retrieve the value
         // of the 'transient' hint with hints['transient'] rather than hints.transient
-        notification.setTransient(hints.maybeGet('transient') == true);
+        // notification.setTransient(hints.maybeGet('transient') == true);
+        notification.isTransient = !!hints['transient'];
+
+        let privacyScope = hints['x-gnome-privacy-scope'] || 'user';
+        notification.privacyScope = privacyScope === 'system'
+            ? MessageTray.PrivacyScope.SYSTEM
+            : MessageTray.PrivacyScope.USER;
 
         // Only fallback to 'app-icon' when the source doesn't have a valid app
         const sourceGIcon = source.app ? null : this._iconForNotificationData(appIcon);
@@ -353,7 +392,7 @@ var NotificationDaemon = class NotificationDaemon {
     GetCapabilities() {
         return [
             'actions',
-            'action-icons',
+            // 'action-icons',
             'body',
             // 'body-hyperlinks',
             // 'body-images',
@@ -373,6 +412,26 @@ var NotificationDaemon = class NotificationDaemon {
             '1.2'
         ];
     }
+
+    // _emitNotificationClosed(id, reason) {
+    //     this._dbusImpl.emit_signal('NotificationClosed',
+    //         GLib.Variant.new('(uu)', [id, reason]));
+    // }
+
+    // _emitActionInvoked(id, action) {
+    //     this._dbusImpl.emit_signal('ActionInvoked',
+    //         GLib.Variant.new('(us)', [id, action]));
+    // }
+
+    // _emitActivationToken(source, id) {
+    //     const context = global.create_app_launch_context(0, -1);
+    //     const info = source.app?.get_app_info();
+    //     if (info) {
+    //         const token = context.get_startup_notify_id(info, []);
+    //         this._dbusImpl.emit_signal('ActivationToken',
+    //             GLib.Variant.new('(us)', [id, token]));
+    //     }
+    // }
 
     _onFocusAppChanged() {
         if (!this._sources.length)
@@ -409,7 +468,9 @@ var NotificationDaemon = class NotificationDaemon {
 var NotificationSource = GObject.registerClass(
 class NotificationSource extends MessageTray.Source {
     constructor(sender, app) {
-        super();
+        super({
+            policy: MessageTray.NotificationPolicy.newForApp(app),
+        });
 
         this.app = app;
         this._appName = null;
@@ -446,10 +507,16 @@ class NotificationSource extends MessageTray.Source {
             this.notify('icon');
         }
 
-        this.showNotification(notification);
+        let tracker = Cinnamon.WindowTracker.get_default();
+        // Acknowledge notifications that are resident and their app has the
+        // current focus so that we don't show a banner.
+        if (notification.resident && this.app && tracker.focus_app === this.app)
+            notification.acknowledged = true;
+
+        this.addNotification(notification);
     }
 
-    open(notification) {
+    open() {
         this.destroyNonResidentNotifications();
         this.openApp();
     }

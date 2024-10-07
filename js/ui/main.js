@@ -536,8 +536,7 @@ function notifyCinnamon2d() {
                        icon);
 
     if (GLib.file_test("/usr/bin/cinnamon-driver-manager", GLib.FileTest.EXISTS)) {
-        notification.addButton("driver-manager", _("Launch Driver Manager"));
-        notification.connect("action-invoked", this.launchDriverManager);
+        notification.addAction(_("Launch Driver Manager"), () => { Util.spawnCommandLineAsync("cinnamon-driver-manager", null, null) });
     }
 }
 
@@ -750,11 +749,18 @@ function loadTheme() {
  * Sends a notification
  */
 function notify(msg, details) {
-    let source = new MessageTray.SystemNotificationSource();
-    messageTray.add(source);
-    let notification = new MessageTray.Notification(source, msg, details);
-    notification.setTransient(true);
-    source.showNotification(notification);
+    // let source = new MessageTray.SystemNotificationSource();
+    let source = new MessageTray.getSystemSource();
+    // messageTray.add(source);
+    // let notification = new MessageTray.Notification(source, msg, details);
+    let notification = new MessageTray.Notification({
+        source,
+        title: msg,
+        body: details,
+        isTransient: true,
+    });
+    // notification.setTransient(true);
+    source.addNotification(notification);
 }
 
 /**
@@ -763,12 +769,19 @@ function notify(msg, details) {
  * @details: Additional information
  */
 function criticalNotify(msg, details, gicon) {
-    let source = new MessageTray.SystemNotificationSource();
-    messageTray.add(source);
-    let notification = new MessageTray.Notification(source, msg, details, { gicon: gicon });
-    notification.setTransient(false);
-    notification.setUrgency(MessageTray.Urgency.CRITICAL);
-    source.showNotification(notification);
+    let source = new MessageTray.getSystemSource();
+    // messageTray.add(source);
+    // let notification = new MessageTray.Notification(source, msg, details, { gicon: gicon });
+    let notification = new MessageTray.Notification({
+        source,
+        title: msg,
+        body: details,
+        gicon: gicon,
+        isTransient: false,
+    });
+    // notification.setTransient(false);
+    notification.urgency = MessageTray.Urgency.CRITICAL;
+    source.addNotification(notification);
     return notification;
 }
 
@@ -782,12 +795,18 @@ function launchDriverManager() {
  * @details: Additional information
  */
 function warningNotify(msg, details, gicon) {
-    let source = new MessageTray.SystemNotificationSource();
-    messageTray.add(source);
-    let notification = new MessageTray.Notification(source, msg, details, { gicon: gicon });
-    notification.setTransient(false);
-    notification.setUrgency(MessageTray.Urgency.HIGH);
-    source.showNotification(notification);
+    let source = new MessageTray.getSystemSource();
+    // messageTray.add(source);
+    let notification = new MessageTray.Notification({
+        source,
+        title: msg,
+        body: details,
+        gicon: gicon,
+        isTransient: false,
+    });
+    // notification.setTransient(false);
+    notification.urgency = MessageTray.Urgency.HIGH;
+    source.addNotification(notification);
 }
 
 /**
