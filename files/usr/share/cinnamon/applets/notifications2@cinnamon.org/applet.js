@@ -18,12 +18,69 @@ const Util = imports.misc.util;
 
 const PANEL_EDIT_MODE_KEY = "panel-edit-mode";
 
+const DoNotDisturbSwitch = GObject.registerClass({
+    Properties: {
+        'state': GObject.ParamSpec.boolean(
+            'state', 'state', 'state',
+            GObject.ParamFlags.READWRITE,
+            false),
+    },
+}, class DoNotDisturbSwitch extends St.Bin {
+    _init(state) {
+        // this._state = false;
+
+        super._init({
+            style_class: 'toggle-switch',
+        });
+
+        this._settings = new Gio.Settings({
+            schema_id: 'org.cinnamon.desktop.notifications',
+        });
+
+        this._state = this._settings.get_boolean('display-notifications');
+
+        this._settings.bind('display-notifications',
+            this, 'state',
+            Gio.SettingsBindFlags.INVERT_BOOLEAN);
+
+        this.connect('destroy', () => {
+            Gio.Settings.unbind(this, 'state');
+            this._settings = null;
+        });
+    }
+
+    get state() {
+        return this._state;
+    }
+
+    set state(state) {
+        if (this._state === state)
+            return;
+
+        if (state)
+            this.add_style_pseudo_class('checked');
+        else
+            this.remove_style_pseudo_class('checked');
+
+        this._state = state;
+        this.notify('state');
+    }
+
+    toggle() {
+        this.state = !this.state
+    }
+});
+
 const Placeholder = GObject.registerClass(
 class Placeholder extends St.BoxLayout {
     _init() {
         super._init({
             style_class: 'message-list-placeholder',
             vertical: true,
+            y_align: Clutter.ActorAlign.CENTER,
+            x_align: Clutter.ActorAlign.CENTER,
+            // x_expand: true,
+            y_expand: true,
         });
 
         this._icon = new St.Icon({ icon_name: 'empty-notif-symbolic' });
@@ -47,10 +104,11 @@ class NotificationSection extends MessageList.MessageListSection {
         });
     }
 
-    // get allowed() {
-    //     return Main.sessionMode.hasNotifications &&
-    //            !Main.sessionMode.isGreeter;
-    // }
+    get allowed() {
+        // return Main.sessionMode.hasNotifications &&
+        //        !Main.sessionMode.isGreeter;
+        return true;
+    }
 
     _sourceAdded(tray, source) {
         source.connectObject('notification-added',
@@ -67,11 +125,11 @@ class NotificationSection extends MessageList.MessageListSection {
             'destroy', () => {
                 if (isUrgent)
                     this._nUrgent--;
+            },
+            'notify::datetime', () => {
+                // The datetime property changes whenever the notification is updated
+                this.moveMessage(message, isUrgent ? 0 : this._nUrgent, this.mapped);
             }, this);
-            // 'notify::datetime', () => {
-            //     // The datetime property changes whenever the notification is updated
-            //     this.moveMessage(message, isUrgent ? 0 : this._nUrgent, this.mapped);
-            // }, this);
 
         if (isUrgent) {
             // Keep track of urgent notifications to keep them on top
@@ -117,24 +175,58 @@ class NotificationMessageList extends St.Widget {
         });
         this.add_child(box);
 
+        // this._thing = new St.BoxLayout({
+        //     vertical: true,
+        //     x_expand: true,
+        //     y_expand: true,
+        // });
+        // this.add_child(this._thing);
+
         this._scrollView = new St.ScrollView ({
-            style_class: 'vfade',
+            style_class: 'message-list-scrollview vfade',
+            x_expand: true,
+            y_expand: true,
+            y_align: St.Align.START,
             overlay_scrollbars: true,
-            x_fill: true,
-            y_fill: true,
+            // x_fill: true,
+            // y_fill: true,
         });
         box.add_child(this._scrollView);
-        this._scrollView.set_policy(St.PolicyType.NEVER, St.PolicyType.NEVER);
+        this._scrollView.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
 
         let hbox = new St.BoxLayout({ style_class: 'message-list-controls' });
         box.add_child(hbox);
+
+        const dndLabel = new St.Label({
+            text: _('Do Not Disturb'),
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        hbox.add_child(dndLabel);
+
+        this._dndSwitch = new DoNotDisturbSwitch();
+        this._dndButton = new St.Button({
+            style_class: 'dnd-button',
+            can_focus: true,
+            toggle_mode: true,
+            child: this._dndSwitch,
+            label_actor: dndLabel,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._dndSwitch.bind_property('state',
+            this._dndButton, 'checked',
+            GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE);
+        hbox.add_child(this._dndButton);
 
         this._clearButton = new St.Button({
             style_class: 'button',
             label: _('Clear'),
             can_focus: true,
-            // x_expand: true,
+            x_expand: false,
             x_align: St.Align.END,
+            // x_fill: true,
+            // y_fill: true,
+            // x_expand: true,
+            // x_align: St.Align.END,
             // y_align: St.Align.END,
         });
         this._clearButton.connect('clicked', () => {
@@ -158,9 +250,12 @@ class NotificationMessageList extends St.Widget {
             'actor-removed', this._sync.bind(this),
             this);
         this._scrollView.child = this._sectionList;
+        // this._thing.add_child(this._sectionList);
 
         this._notificationSection = new NotificationSection();
         this._addSection(this._notificationSection);
+
+        this._sync();
     }
 
     _addSection(section) {
@@ -249,8 +344,109 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         this.set_applet_tooltip(_("Notifications"));
 
         // Setup the notification container.
-        this._mainContainer = new NotificationMessageList();
-        // this._maincontainer = new St.BoxLayout({name: 'traycontainer', vertical: true});
+        // this._mainContainer = new St.Bin();
+        // this._messageContainer = new NotificationMessageList();
+        this._mainContainer = new St.BoxLayout({
+            name: 'traycontainer',
+            vertical: true,
+            x_expand: true,
+            y_expand: true,
+        });
+
+        this._placeholder = new Placeholder();
+        this._mainContainer.add_child(this._placeholder);
+
+        this._scrollView = new St.ScrollView ({
+            style_class: 'message-list-scrollview vfade',
+            x_expand: true,
+            y_expand: true,
+            y_align: St.Align.START,
+            // overlay_scrollbars: true,
+            // x_fill: true,
+            // y_fill: true,
+        });
+        this._mainContainer.add_child(this._scrollView);
+
+        this._scrollView.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
+        this._scrollView.set_clip_to_allocation(true);
+
+        let vscroll = this._scrollView.get_vscroll_bar();
+        vscroll.connect('scroll-start', Lang.bind(this, function() {
+            this.menu.passEvents = true;
+        }));
+        vscroll.connect('scroll-stop', Lang.bind(this, function() {
+            this.menu.passEvents = false;
+        }));
+
+        let hbox = new St.BoxLayout({ style_class: 'message-list-controls' });
+        this._mainContainer.add_child(hbox);
+
+        const dndLabel = new St.Label({
+            text: _('Do Not Disturb'),
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        hbox.add_child(dndLabel);
+
+        this._dndSwitch = new DoNotDisturbSwitch();
+        this._dndButton = new St.Button({
+            style_class: 'dnd-button',
+            can_focus: true,
+            toggle_mode: true,
+            child: this._dndSwitch,
+            label_actor: dndLabel,
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        this._dndSwitch.bind_property('state',
+            this._dndButton, 'checked',
+            GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE);
+        hbox.add_child(this._dndButton);
+
+        const spacer = new St.Bin({ x_expand: true });
+        hbox.add_child(spacer);
+
+        this._clearButton = new St.Button({
+            style_class: 'button',
+            label: _('Clear'),
+            can_focus: true,
+            x_expand: false,
+            x_align: St.Align.END,
+            // x_fill: true,
+            // y_fill: true,
+            // x_expand: true,
+            // x_align: St.Align.END,
+            // y_align: St.Align.END,
+        });
+        this._clearButton.connect('clicked', () => {
+            this._sectionList.get_children().forEach(s => s.clear());
+        });
+        hbox.add_child(this._clearButton);
+
+        this._placeholder.bind_property('visible',
+            this._clearButton, 'visible',
+            GObject.BindingFlags.INVERT_BOOLEAN);
+
+        this._scrollView.bind_property('visible',
+            this._clearButton, 'visible',
+            GObject.BindingFlags.INVERT_BOOLEAN);
+
+        this._sectionList = new St.BoxLayout({
+            style_class: 'message-list-sections',
+            vertical: true,
+            x_expand: true,
+            y_expand: true,
+        });
+
+        this._sectionList.connectObject(
+            'actor-added', this._sync.bind(this),
+            'actor-removed', this._sync.bind(this),
+            this);
+        // this._scrollView.child = this._sectionList;
+        this._scrollView.add_actor(this._sectionList);
+        // this._thing.add_child(this._sectionList);
+
+        this._notificationSection = new NotificationSection();
+        this._addSection(this._notificationSection);
+
         // this._notificationbin = new St.BoxLayout({vertical:true});
         // this.button_label_box = new St.BoxLayout();
 
@@ -266,17 +462,26 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         // this.clear_action.connect('activate', Lang.bind(this, this._clear_all));
         // this.clear_action.actor.hide();
 
-        if (this._orientation == St.Side.BOTTOM) {
-            // this.menu.addMenuItem(this.menu_label);
-            this.menu.addActor(this._mainContainer);
-            // this.menu.addMenuItem(this.clear_separator);
-            // this.menu.addMenuItem(this.clear_action);
-        } else {
-            // this.menu.addMenuItem(this.clear_action);
-            // this.menu.addMenuItem(this.clear_separator);
-            // this.menu.addMenuItem(this.menu_label);
-            this.menu.addActor(this._mainContainer);
-        }
+        // this.menu.addActor(this._mainContainer);
+        this.menu.box.add_child(this._mainContainer);
+
+        // this._messageContainer = new NotificationMessageList();
+        // this._mainContainer.add_child(this._messageContainer);
+        // this.menu.box.add_child(this._mainContainer);
+        // this._mainContainer.child = this._messageContainer;
+
+        // if (this._orientation == St.Side.BOTTOM) {
+        //     this.addActor(this._mainContainer);
+        //     // this.menu.addMenuItem(this.menu_label);
+        //     // this.menu.box.add_child(this._mainContainer);
+        //     // this.menu.addMenuItem(this.clear_separator);
+        //     // this.menu.addMenuItem(this.clear_action);
+        // } else {
+        //     // this.menu.addMenuItem(this.clear_action);
+        //     // this.menu.addMenuItem(this.clear_separator);
+        //     // this.menu.addMenuItem(this.menu_label);
+        //     this.menu.box.add_child(this._mainContainer);
+        // }
 
         // this.scrollview = new St.ScrollView({ x_fill: true, y_fill: true, y_align: St.Align.START, style_class: "vfade"});
         // this._mainContainer.add_child(this.scrollview);
@@ -292,6 +497,26 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         //     this.menu.passEvents = false;
         // }));
 
+        // this._placeholder = new Placeholder();
+        // this._mainContainer.add_child(this._placeholder);
+
+        // let hbox = new St.BoxLayout({ style_class: 'message-list-controls' });
+        // this._mainContainer.add_child(hbox);
+
+        // this._clearButton = new St.Button({
+        //     style_class: 'button',
+        //     label: _('Clear'),
+        //     can_focus: true,
+        //     x_expand: false,
+        //     x_align: St.Align.END,
+        //     // x_fill: true,
+        //     // y_fill: true,
+        //     // x_expand: true,
+        //     // x_align: St.Align.END,
+        //     // y_align: St.Align.END,
+        // });
+        // hbox.add_child(this._clearButton);
+
         // Alternative tray icons.
         this._crit_icon = new St.Icon({icon_name: 'critical-notif', icon_type: St.IconType.SYMBOLIC, reactive: true, track_hover: true, style_class: 'system-status-icon' });
         this._alt_crit_icon = new St.Icon({icon_name: 'alt-critical-notif', icon_type: St.IconType.SYMBOLIC, reactive: true, track_hover: true, style_class: 'system-status-icon' });
@@ -299,6 +524,42 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
         this._on_panel_edit_mode_changed();
 
         // this.menu.addSettingsAction(_("Notification Settings"), 'notifications');
+    }
+
+    _addSection(section) {
+        section.connectObject(
+            'notify::visible', this._sync.bind(this),
+            'notify::empty', this._sync.bind(this),
+            'notify::can-clear', this._sync.bind(this),
+            'destroy', () => this._sectionList.remove_child(section),
+            'message-focused', (_s, messageActor) => {
+               global.log("message focused");
+            }, this);
+            // 'message-focused', (_s, messageActor) => {
+            //     ensureActorVisibleInScrollView(this._scrollView, messageActor);
+            // }, this);
+        this._sectionList.add_child(section);
+        // section.connect('message-focused',)
+
+        // this._sectionList.add_child(section);
+    }
+
+    _sync() {
+        // this._sectionList.queue_relayout();
+        let sections = this._sectionList.get_children();
+        let visible = sections.some(s => s.allowed);
+        global.log("Is visible");
+        this.visible = visible;
+        if (!visible)
+            return;
+
+        let empty = sections.every(s => s.empty || !s.visible);
+        this._placeholder.visible = empty;
+
+        let canClear = sections.some(s => s.canClear && s.visible);
+        this._clearButton.reactive = canClear;
+
+        this.update_list(sections);
     }
 
     // _notification_added (mtray, notification) { // Notification event handler.
@@ -343,9 +604,9 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
     //     this.update_list();
     // }
 
-    update_list () {
+    update_list (sections) {
         try {
-            let count = this.notifications.length;
+            let count = this.sections.length;
             if (count > 0) {    // There are notifications.
                 this.actor.show();
                 // this.clear_action.actor.show();
@@ -419,11 +680,13 @@ class CinnamonNotificationsApplet extends Applet.TextIconApplet {
     }
 
     _on_panel_edit_mode_changed () {
-        if (global.settings.get_boolean(PANEL_EDIT_MODE_KEY)) {
-            this.actor.show();
-        } else {
-            this.update_list();
-        }
+        if (global.settings.get_boolean(PANEL_EDIT_MODE_KEY))
+            this.actor.show()
+        // if (global.settings.get_boolean(PANEL_EDIT_MODE_KEY)) {
+        //     this.actor.show();
+        // } else {
+        //     this.update_list();
+        // }
     }
 
     on_applet_added_to_panel() {

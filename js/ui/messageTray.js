@@ -478,8 +478,8 @@ var NotificationPolicy = GObject.registerClass({
         'enable-sound': GObject.ParamSpec.boolean(
             'enable-sound', 'enable-sound', 'enable-sound',
             GObject.ParamFlags.READABLE, true),
-        'show-banners': GObject.ParamSpec.boolean(
-            'show-banners', 'show-banners', 'show-banners',
+        'display-notifications': GObject.ParamSpec.boolean(
+            'display-notifications', 'display-notifications', 'display-notifications',
             GObject.ParamFlags.READABLE, true),
         'force-expanded': GObject.ParamSpec.boolean(
             'force-expanded', 'force-expanded', 'force-expanded',
@@ -526,7 +526,7 @@ var NotificationPolicy = GObject.registerClass({
         return true;
     }
 
-    get showBanners() {
+    get displayNotifications() {
         return true;
     }
 
@@ -549,23 +549,23 @@ var NotificationGenericPolicy = GObject.registerClass({
         super._init();
         this.id = 'generic';
 
-        // this._masterSettings = new Gio.Settings({schema_id: 'org.gnome.desktop.notifications'});
-        // this._masterSettings.connect('changed', this._changed.bind(this));
+        this._masterSettings = new Gio.Settings({schema_id: 'org.cinnamon.desktop.notifications'});
+        this._masterSettings.connect('changed', this._changed.bind(this));
     }
 
     destroy() {
-        // this._masterSettings.run_dispose();
+        this._masterSettings.run_dispose();
 
         super.destroy();
     }
 
-    // _changed(settings, key) {
-    //     if (this.constructor.find_property(key))
-    //         this.notify(key);
-    // }
+    _changed(settings, key) {
+        if (this.constructor.find_property(key))
+            this.notify(key);
+    }
 
-    get showBanners() {
-        // return this._masterSettings.get_boolean('show-banners');
+    get displayNotifications() {
+        return this._masterSettings.get_boolean('display-notifications');
         return true;
     }
 
@@ -631,9 +631,9 @@ var NotificationApplicationPolicy = GObject.registerClass({
         return true;
     }
 
-    get showBanners() {
-        // return this._masterSettings.get_boolean('show-banners') &&
-        //     this._settings.get_boolean('show-banners');
+    get displayNotifications() {
+        // return this._masterSettings.get_boolean('display-notifications') &&
+        //     this._settings.get_boolean('display-notifications');
         return true;
     }
 
@@ -815,99 +815,27 @@ var Notification = class Notification extends GObject.Object {
 
         this._actions = [];
 
-        // title = Util.decodeHTML(title);
-        // body = Util.decodeHTML(body);
+        if (!this.datetime)
+            this.datetime = GLib.DateTime.new_now_local();
 
-        // this.source = source;
-        // this.title = title;
-        // this.urgency = Urgency.NORMAL;
-        // this.resident = false;
-        // // 'transient' is a reserved keyword in JS, so we have to use an alternate variable name
-        // this.isTransient = false;
-        // this.silent = false;
-        // this._destroyed = false;
-        // this._useActionIcons = false;
-        // this._titleDirection = St.TextDirection.NONE;
-        // // this._scrollArea = null;
-        // this._actionArea = null;
-        // // this._imageBin = null;
-        // this._timestamp = new Date();
-        // this._inNotificationBin = false;
-
-        // this.expanded = false;
-
-        // source.connect('destroy', (source, reason) => { this.destroy(reason) });
-
-        // this.actor = new St.Button({
-        //     style_class: 'message',
-        //     accessible_role: Atk.Role.NOTIFICATION,
-        //     x_fill: true,
-        // });
-        // this.actor._parent_container = null;
-        // this.actor.connect('clicked', () => this.activate());
-        // this.actor.connect('destroy', () => this._onDestroy());
-
-        // let vbox = new St.BoxLayout({
-        //     vertical: true,
-        //     x_expand: true,
-        // });
-        // this.actor.set_child(vbox);
-
-        // this._header = new NotificationHeader(source);
-        // vbox.add_child(this._header);
-
-        // const hbox = new St.BoxLayout({
-        //     style_class: 'message-box',
-        // });
-        // vbox.add_child(hbox);
-
-        // this._actionBin = new St.Widget({
-        //     style_class: 'message-action-bin',
-        //     visible: false,
-        //     layout_manager: new Clutter.BoxLayout({
-        //         homogeneous: true,
-        //     }),
-        // });
-        // vbox.add_child(this._actionBin);
-
-        // this._icon = new St.Icon({
-        //     style_class: 'message-icon',
-        //     y_expand: true,
-        //     y_align: Clutter.ActorAlign.START,
-        //     visible: true,
-        //     // icon_name: 'help-about-symbolic',
-        // });
-        // hbox.add_child(this._icon);
-
-        // const contentBox = new St.BoxLayout({
-        //     style_class: 'message-content',
-        //     vertical: true,
-        //     x_expand: true,
-        // });
-        // hbox.add_child(contentBox);
-
-        // this.titleLabel = new St.Label({
-        //     style_class: 'message-title',
-        //     y_align: Clutter.ActorAlign.END,
-        // });
-        // contentBox.add_child(this.titleLabel);
-
-        // this._bodyLabel = new URLHighlighter("", true, false);
-        // this._bodyLabel.add_style_class_name('message-body');
-        // this._bodyBin = new St.Bin({
-        //     x_expand: true,
-        //     x_fill: true,
-        //     layout_manager: new LabelExpanderLayout(),
-        //     child: this._bodyLabel,
-        // });
-        // contentBox.add_child(this._bodyBin);
-
-        // // this._header.closeButton.connect('clicked', this.close.bind(this));
-
-        // this._buttonFocusManager = St.FocusManager.get_for_stage(global.stage);
-
-        // if (arguments.length != 1)
-        //     this.update(title, body, params);
+        // Automatically update the datetime property when the notification
+        // is updated.
+        this.connect('notify', (o, pspec) => {
+            if (pspec.name === 'acknowledged') {
+                // Don't update datetime property
+            } else if (pspec.name === 'datetime') {
+                if (this._updateDatetimeId)
+                    GLib.source_remove(this._updateDatetimeId);
+                delete this._updateDatetimeId;
+            } else if (!this._updateDatetimeId) {
+                this._updateDatetimeId =
+                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                        delete this._updateDatetimeId;
+                        this.datetime = GLib.DateTime.new_now_local();
+                        return GLib.SOURCE_REMOVE;
+                    });
+            }
+        });
     }
 
     // close() {
@@ -1738,7 +1666,7 @@ var MessageTray = GObject.registerClass({
         if (notification.urgency === Urgency.LOW)
             return;
 
-        if (!notification.source.policy.showBanners && notification.urgency !== Urgency.CRITICAL)
+        if (!notification.source.policy.displayNotifications && notification.urgency !== Urgency.CRITICAL)
             return;
 
         if (this._notification === notification) {
@@ -1941,7 +1869,7 @@ var MessageTray = GObject.registerClass({
         this._bannerBin.add_child(this._banner);
 
         this._bannerBin.opacity = 0;
-        this._bannerBin.y = -this._banner.height;
+        this._bannerBin.y = 0;
         this.show();
 
         Meta.disable_unredirect_for_display(global.display);
@@ -1995,7 +1923,7 @@ var MessageTray = GObject.registerClass({
         this._bannerBin.ease({
             y: 0,
             duration: ANIMATION_TIME,
-            mode: Clutter.AnimationMode.EASE_OUT_BACK,
+            mode: Clutter.AnimationMode.LINEAR,
             onComplete: () => {
                 this._notificationState = State.SHOWN;
                 this._showNotificationCompleted();
@@ -2059,12 +1987,12 @@ var MessageTray = GObject.registerClass({
         this._bannerBin.ease({
             opacity: 0,
             duration,
-            mode: Clutter.AnimationMode.EASE_OUT_BACK,
+            mode: Clutter.AnimationMode.LINEAR,
         });
         this._bannerBin.ease({
-            y: -this._bannerBin.height,
+            y: 0,
             duration,
-            mode: Clutter.AnimationMode.EASE_OUT_BACK,
+            mode: Clutter.AnimationMode.LINEAR,
             onComplete: () => {
                 this._notificationState = State.HIDDEN;
                 this._hideNotificationCompleted();

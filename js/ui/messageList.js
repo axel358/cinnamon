@@ -12,9 +12,73 @@ const Util = imports.misc.util;
 
 const MessageTray = imports.ui.messageTray;
 
+const Gettext = imports.gettext;
+
 const MESSAGE_ANIMATION_TIME = 100;
 
 const DEFAULT_EXPAND_LINES = 6;
+
+let _localTimeZone = null;
+
+function formatTimeSpan(date) {
+    if (_localTimeZone === null)
+        _localTimeZone = GLib.TimeZone.new_local();
+
+    const now = GLib.DateTime.new_now(_localTimeZone);
+    const timespan = now.difference(date);
+
+    const minutesAgo = timespan / GLib.TIME_SPAN_MINUTE;
+    const hoursAgo = timespan / GLib.TIME_SPAN_HOUR;
+    const daysAgo = timespan / GLib.TIME_SPAN_DAY;
+    const weeksAgo = daysAgo / 7;
+    const monthsAgo = daysAgo / 30;
+    const yearsAgo = weeksAgo / 52;
+
+    if (minutesAgo < 5)
+        return _('Just now');
+    if (hoursAgo < 1) {
+        return Gettext.ngettext(
+            '%d minute ago',
+            '%d minutes ago',
+            minutesAgo
+        ).format(minutesAgo);
+    }
+    if (daysAgo < 1) {
+        return Gettext.ngettext(
+            '%d hour ago',
+            '%d hours ago',
+            hoursAgo
+        ).format(hoursAgo);
+    }
+    if (daysAgo < 2)
+        return _('Yesterday');
+    if (daysAgo < 15) {
+        return Gettext.ngettext(
+            '%d day ago',
+            '%d days ago',
+            daysAgo
+        ).format(daysAgo);
+    }
+    if (weeksAgo < 8) {
+        return Gettext.ngettext(
+            '%d week ago',
+            '%d weeks ago',
+            weeksAgo
+        ).format(weeksAgo);
+    }
+    if (yearsAgo < 1) {
+        return Gettext.ngettext(
+            '%d month ago',
+            '%d months ago',
+            monthsAgo
+        ).format(monthsAgo);
+    }
+    return Gettext.ngettext(
+        '%d year ago',
+        '%d years ago',
+        yearsAgo
+    ).format(yearsAgo);
+}
 
 function _fixMarkup(text, allowMarkup) {
     if (allowMarkup) {
@@ -260,7 +324,10 @@ const LabelExpanderLayout = GObject.registerClass({
     vfunc_get_preferred_height(container, forWidth) {
         let [min, nat] = [0, 0];
 
-        const [child] = container;
+        // global.log(container);
+        const child = container.child;
+
+        // const [child] = container;
 
         if (child) {
             [min, nat] = child.get_preferred_height(-1);
@@ -306,6 +373,48 @@ var BaseSource = GObject.registerClass({
     }
 });
 
+const TimeLabel = GObject.registerClass(
+class TimeLabel extends St.Label {
+    _init() {
+        super._init({
+            style_class: 'event-time',
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.START,
+            y_align: Clutter.ActorAlign.END,
+            visible: false,
+        });
+    }
+
+    get datetime() {
+        return this._datetime;
+    }
+
+    set datetime(datetime) {
+        if (this._datetime?.equal(datetime))
+            return;
+
+        this._datetime = datetime;
+
+        this.visible = !!this._datetime;
+
+        if (this.mapped)
+            this._updateText();
+    }
+
+    _updateText() {
+        if (this._datetime)
+            this.text = formatTimeSpan(this._datetime);
+        global.log("Updating time label");
+    }
+
+    vfunc_map() {
+        this._updateText();
+
+        super.vfunc_map();
+    }
+});
+
 var MessageHeader = GObject.registerClass(
 class MessageHeader extends St.BoxLayout {
     constructor(source) {
@@ -333,7 +442,7 @@ class MessageHeader extends St.BoxLayout {
         this.expandButton = new St.Button({
             style_class: 'message-expand-button',
             icon_name: 'notification-expand-symbolic',
-            y_align: Clutter.ActorAlign.CENTER,
+            // y_align: Clutter.ActorAlign.CENTER,
             pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
         });
         this.add_child(this.expandButton);
@@ -341,7 +450,9 @@ class MessageHeader extends St.BoxLayout {
         this.closeButton = new St.Button({
             style_class: 'message-close-button',
             icon_name: 'window-close-symbolic',
-            y_align: Clutter.ActorAlign.CENTER,
+            y_expand: false,
+            y_fill: false,
+            // y_align: Clutter.ActorAlign.CENTER,
             // opacity: 0,
         });
         this.add_child(this.closeButton);
@@ -364,6 +475,9 @@ class MessageHeader extends St.BoxLayout {
             sourceIcon,
             'gicon',
             GObject.BindingFlags.SYNC_CREATE);
+
+        this.timeLabel = new TimeLabel();
+        headerContent.add_child(this.timeLabel);
     }
 });
 
@@ -463,8 +577,9 @@ var Message = GObject.registerClass({
         this._bodyLabel = new URLHighlighter('', true, this._useBodyMarkup);
         this._bodyLabel.add_style_class_name('message-body');
         this._bodyBin = new St.Bin({
+            y_align: Clutter.ActorAlign.START,
             x_expand: true,
-            x_fill: true,
+            // x_fill: true,
             layout_manager: new LabelExpanderLayout(),
             child: this._bodyLabel,
         });
@@ -510,12 +625,12 @@ var Message = GObject.registerClass({
     }
 
     set datetime(datetime) {
-        // this._header.timeLabel.datetime = datetime;
-        // this.notify('datetime');
+        this._header.timeLabel.datetime = datetime;
+        this.notify('datetime');
     }
 
     get datetime() {
-        // return this._header.timeLabel.datetime;
+        return this._header.timeLabel.datetime;
     }
 
     set title(text) {
@@ -661,7 +776,7 @@ var MessageListSection = GObject.registerClass({
     _init() {
         super._init({
             style_class: 'message-list-section',
-            // clip_to_allocation: true,
+            clip_to_allocation: true,
             vertical: true,
             x_expand: true,
         });
