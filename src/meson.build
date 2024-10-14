@@ -108,6 +108,13 @@ libcinnamon_deps = [
     xml,
 ]
 
+libcinnamon_deps += nm_deps
+
+if have_networkmanager
+    cinnamon_headers += 'cinnamon-network-agent.h'
+    cinnamon_sources += 'cinnamon-network-agent.c'
+endif
+
 non_gir = []
 if get_option('build_recorder')
     cinnamon_sources += [
@@ -194,6 +201,10 @@ cinnamon_gir_includes = [
     'PolkitAgent-1.0',
     st_gir[0],
 ]
+
+if have_networkmanager
+    cinnamon_gir_includes += ['NM-1.0']
+endif
 
 cinnamon_gir = gnome.generate_gir(
     libcinnamon,

@@ -106,6 +106,7 @@ const PolkitAuthenticationAgent = imports.ui.polkitAuthenticationAgent;
 const RunDialog = imports.ui.runDialog;
 const Layout = imports.ui.layout;
 const LookingGlass = imports.ui.lookingGlass;
+const NetworkAgent = imports.ui.networkAgent;
 const NotificationDaemon = imports.ui.notificationDaemon;
 const WindowAttentionHandler = imports.ui.windowAttentionHandler;
 const CinnamonDBus = imports.ui.cinnamonDBus;
@@ -162,6 +163,7 @@ var xdndHandler = null;
 var statusIconDispatcher = null;
 var virtualKeyboard = null;
 var layoutManager = null;
+var networkAgent = null;
 var monitorLabeler = null;
 var themeManager = null;
 var keybindingManager = null;
@@ -417,6 +419,7 @@ function start() {
     notificationDaemon = new NotificationDaemon.NotificationDaemon();
     windowAttentionHandler = new WindowAttentionHandler.WindowAttentionHandler();
     placesManager = new PlacesManager.PlacesManager();
+    networkAgent = new NetworkAgent.NetworkAgent();
 
     magnifier = new Magnifier.Magnifier();
     locatePointer = new LocatePointer.locatePointer();
