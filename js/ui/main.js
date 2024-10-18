@@ -431,7 +431,7 @@ function start() {
     _initUserSession();
     screenRecorder = new ScreenRecorder.ScreenRecorder();
 
-    if (Meta.is_wayland_compositor()) {
+    if (true) {
         PolkitAuthenticationAgent.init();
     }
 
