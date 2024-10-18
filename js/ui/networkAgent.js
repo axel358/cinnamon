@@ -48,6 +48,7 @@ class NetworkSecretDialog extends ModalDialog.ModalDialog {
                 reactive,
                 x_align: Clutter.ActorAlign.CENTER,
             };
+            // FIXME
             if (secret.password) {
                 secret.entry = new St.Entry(entryParams);
             }
