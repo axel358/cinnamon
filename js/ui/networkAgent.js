@@ -48,10 +48,12 @@ class NetworkSecretDialog extends ModalDialog.ModalDialog {
                 reactive,
                 x_align: Clutter.ActorAlign.CENTER,
             };
-            if (secret.password)
-                secret.entry = new St.PasswordEntry(entryParams);
-            else
+            if (secret.password) {
                 secret.entry = new St.Entry(entryParams);
+            }
+            else {
+                secret.entry = new St.Entry(entryParams);
+            }
             CinnamonEntry.addContextMenu(secret.entry);
             contentBox.add_child(secret.entry);
 
@@ -80,10 +82,10 @@ class NetworkSecretDialog extends ModalDialog.ModalDialog {
             }
         }
 
-        if (this._content.secrets.some(s => s.password)) {
-            let capsLockWarning = new CinnamonEntry.CapsLockWarning();
-            contentBox.add_child(capsLockWarning);
-        }
+        // if (this._content.secrets.some(s => s.password)) {
+        //     let capsLockWarning = new CinnamonEntry.CapsLockWarning();
+        //     contentBox.add_child(capsLockWarning);
+        // }
 
         if (flags & NM.SecretAgentGetSecretsFlags.WPS_PBC_ACTIVE) {
             let descriptionLabel = new St.Label({
