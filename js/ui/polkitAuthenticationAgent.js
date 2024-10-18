@@ -105,14 +105,14 @@ var AuthenticationDialog = GObject.registerClass({
             vertical: true,
         });
 
-        this._passwordEntry = new St.Entry({
+        this._passwordEntry = new St.PasswordEntry({
             style_class: 'prompt-dialog-password-entry',
             text: "",
             can_focus: true,
             visible: false,
             x_align: Clutter.ActorAlign.CENTER,
         });
-        CinnamonEntry.addContextMenu(this._passwordEntry, { isPassword: true });
+        CinnamonEntry.addContextMenu(this._passwordEntry);
         this._passwordEntry.clutter_text.connect('activate', this._onEntryActivate.bind(this));
         this._passwordEntry.bind_property('reactive',
             this._passwordEntry.clutter_text, 'editable',
@@ -292,10 +292,7 @@ var AuthenticationDialog = GObject.registerClass({
         else
             this._passwordEntry.hint_text = request;
 
-        if (echoOn)
-            this._passwordEntry.clutter_text.set_password_char('');
-        else
-            this._passwordEntry.clutter_text.set_password_char('\u25cf'); // ● U+25CF BLACK CIRCLE
+        this._passwordEntry.password_visible = echoOn;
 
         this._passwordEntry.show();
         this._passwordEntry.set_text('');
