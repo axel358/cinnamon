@@ -112,6 +112,7 @@ const LookingGlass = imports.ui.lookingGlass;
 const NetworkAgent = imports.ui.networkAgent;
 const NotificationDaemon = imports.ui.notificationDaemon;
 const WindowAttentionHandler = imports.ui.windowAttentionHandler;
+const ScreenShield = imports.ui.screenShield;
 const CinnamonDBus = imports.ui.cinnamonDBus;
 const Screenshot = imports.ui.screenshot;
 const ThemeManager = imports.ui.themeManager;
@@ -153,6 +154,7 @@ var lookingGlassUpdateID = 0;
 var wm = null;
 var a11yHandler = null;
 var messageTray = null;
+var screenShield = null;
 var notificationDaemon = null;
 var windowAttentionHandler = null;
 var screenRecorder = null;
@@ -433,6 +435,8 @@ function start() {
 
     magnifier = new Magnifier.Magnifier();
     locatePointer = new LocatePointer.locatePointer();
+
+    screenShield = new ScreenShield.ScreenShield();
 
     layoutManager.init();
     virtualKeyboard.init();

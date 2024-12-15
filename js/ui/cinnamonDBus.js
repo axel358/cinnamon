@@ -138,6 +138,27 @@ const CinnamonIface =
         </interface> \
     </node>';
 
+const ScreenSaverIface =
+    '<node> \
+        <interface name="org.cinnamon.ScreenSaver"> \
+            <method name="Lock"> \
+            </method> \
+            <method name="GetActive"> \
+                <arg name="active" direction="out" type="b" /> \
+            </method> \
+            <method name="SetActive"> \
+                <arg name="value" direction="in" type="b" /> \
+            </method> \
+            <method name="GetActiveTime"> \
+                <arg name="value" direction="out" type="u" /> \
+            </method> \
+            <signal name="ActiveChanged"> \
+                <arg name="new_value" type="b" /> \
+            </signal> \
+        <signal name="WakeUpScreen" /> \
+    </interface> \
+</node>';
+
 function CinnamonDBus() {
     this._init();
 }
@@ -531,4 +552,51 @@ CinnamonDBus.prototype = {
     },
 
     CinnamonVersion: Config.PACKAGE_VERSION
+};
+
+var ScreenSaverDBus = class {
+    constructor(screenShield) {
+        this._screenShield = screenShield;
+        screenShield.connect('active-changed', shield => {
+            this._dbusImpl.emit_signal('ActiveChanged', GLib.Variant.new('(b)', [shield.active]));
+        });
+        screenShield.connect('wake-up-screen', () => {
+            this._dbusImpl.emit_signal('WakeUpScreen', null);
+        });
+
+        this._dbusImpl = Gio.DBusExportedObject.wrapJSObject(ScreenSaverIface, this);
+        this._dbusImpl.export(Gio.DBus.session, '/org/cinnamon/ScreenSaver');
+
+        Gio.DBus.session.own_name('org.cinnamon.ScreenSaver',
+            Gio.BusNameOwnerFlags.REPLACE, null, null);
+    }
+
+    LockAsync(parameters, invocation) {
+        let tmpId = this._screenShield.connect('lock-screen-shown', () => {
+            this._screenShield.disconnect(tmpId);
+
+            invocation.return_value(null);
+        });
+
+        this._screenShield.lock(true);
+    }
+
+    SetActive(active) {
+        if (active)
+            this._screenShield.activate(true);
+        else
+            this._screenShield.deactivate(false);
+    }
+
+    GetActive() {
+        return this._screenShield.active;
+    }
+
+    GetActiveTime() {
+        let started = this._screenShield.activationTime;
+        if (started > 0)
+            return Math.floor((GLib.get_monotonic_time() - started) / 1000000);
+        else
+            return 0;
+    }
 };

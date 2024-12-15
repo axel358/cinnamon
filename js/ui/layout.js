@@ -281,6 +281,18 @@ LayoutManager.prototype = {
         this.hideIdleId = 0;
         this._chrome = new Chrome(this);
 
+        this.screenShieldGroup = new St.Widget({
+            name: 'screenShieldGroup',
+            visible: false,
+            clip_to_allocation: true,
+            layout_manager: new Clutter.BinLayout(),
+            constraints: new Clutter.BindConstraint({
+                source: Main.uiGroup,
+                coordinate: Clutter.BindCoordinate.ALL,
+            }),
+        });
+        this.addChrome(this.screenShieldGroup);
+
         this.enabledEdgeFlip = global.settings.get_boolean("enable-edge-flip");
         this.edgeFlipDelay = global.settings.get_int("edge-flip-delay");
 

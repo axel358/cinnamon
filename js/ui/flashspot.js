@@ -19,8 +19,8 @@ var Flashspot = class Flashspot extends Lightbox.Lightbox {
             }
         );
 
-        this.actor.style_class = 'flashspot';
-        this.actor.set_position(area.x, area.y);
+        this.style_class = 'flashspot';
+        this.set_position(area.x, area.y);
         if (area.time)
             this.animation_time = area.time;
         else
@@ -28,14 +28,14 @@ var Flashspot = class Flashspot extends Lightbox.Lightbox {
    }
 
    fire() {
-      this.actor.opacity = 255;
-      Tweener.addTween(this.actor,
+      this.opacity = 255;
+      Tweener.addTween(this,
                       { opacity: 0,
                         time: this.animation_time,
                         transition: 'easeOutQuad',
                         onComplete: Lang.bind(this, this._onFireShowComplete)
                       });
-      this.actor.show();
+      this.show();
    }
 
    _onFireShowComplete () {
