@@ -102,6 +102,7 @@ const MessageTray = imports.ui.messageTray;
 const OsdWindow = imports.ui.osdWindow;
 const Overview = imports.ui.overview;
 const Expo = imports.ui.expo;
+const Coverview = imports.ui.coverview;
 const Panel = imports.ui.panel;
 const PlacesManager = imports.ui.placesManager;
 const PolkitAuthenticationAgent = imports.ui.polkitAuthenticationAgent;
@@ -147,6 +148,7 @@ var panelManager = null;
 var osdWindowManager = null;
 var overview = null;
 var expo = null;
+var coverview = null;
 var runDialog = null;
 var lookingGlass = null;
 var lookingGlassUpdateID = 0;
@@ -416,6 +418,7 @@ function start() {
     // This overview object is just a stub for non-user sessions
     overview = new Overview.Overview();
     expo = new Expo.Expo();
+    coverview = new Coverview.Overview();
 
     statusIconDispatcher = new StatusIconDispatcher.StatusIconDispatcher();
 
@@ -438,6 +441,7 @@ function start() {
     virtualKeyboard.init();
     overview.init();
     expo.init();
+    coverview.init();
 
     _addXletDirectoriesToSearchPath();
     _initUserSession();
@@ -1150,7 +1154,7 @@ function _stageEventHandler(actor, event) {
     }
 
     // Other bindings are only available when the overview is up and no modal dialog is present
-    if (((!overview.visible && !expo.visible) || modalCount > 1))
+    if (((!overview.visible && !expo.visible && !coverview.visible) || modalCount > 1))
         return false;
 
     // This isn't a Meta.KeyBindingAction yet
@@ -1178,10 +1182,12 @@ function _stageEventHandler(actor, event) {
         case Meta.KeyBindingAction.WORKSPACE_UP:
             overview.hide();
             expo.hide();
+            coverview.hide();
             return true;
         case Meta.KeyBindingAction.WORKSPACE_DOWN:
             overview.hide();
             expo.hide();
+            coverview.hide();
             return true;
         case Meta.KeyBindingAction.PANEL_RUN_DIALOG:
             getRunDialog().open();
@@ -1384,6 +1390,7 @@ function activateWindow(window, time, workspaceNum) {
 
     overview.hide();
     expo.hide();
+    coverview.hide();
 }
 
 // TODO - replace this timeout with some system to guess when the user might

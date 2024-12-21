@@ -236,9 +236,9 @@ class HotCorner {
 
     runAction(timestamp) {
         switch (this.action) {
-            case 'expo':
+            case 'coverview':
                 if (!Main.expo.animationInProgress)
-                    Main.expo.toggle();
+                    Main.coverview.toggle();
                 break;
             case 'scale':
                 if (!Main.overview.animationInProgress)

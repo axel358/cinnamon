@@ -1,0 +1,599 @@
+const { Cinnamon, Clutter, Gio, GLib, GObject, Meta, St } = imports.gi;
+
+const Layout = imports.ui.layout;
+const Main = imports.ui.main;
+const Overview = imports.ui.coverview;
+const Util = imports.misc.util;
+const WindowManager = imports.ui.windowManager;
+const WorkspaceThumbnail = imports.ui.workspaceThumbnail;
+const WorkspacesView = imports.ui.workspacesView2;
+
+const SMALL_WORKSPACE_RATIO = 0.15;
+
+var SIDE_CONTROLS_ANIMATION_TIME = 0.5;
+
+var ControlsState = {
+    HIDDEN: 0,
+    WINDOW_PICKER: 1,
+    APP_GRID: 2,
+};
+
+var ControlsManagerLayout = GObject.registerClass(
+class ControlsManagerLayout extends Clutter.BoxLayout {
+    _init(workspacesDisplay, workspacesThumbnails, stateAdjustment) {
+        super._init({ orientation: Clutter.Orientation.VERTICAL });
+
+        this._workspacesDisplay = workspacesDisplay;
+        this._workspacesThumbnails = workspacesThumbnails;
+        this._stateAdjustment = stateAdjustment;
+
+        this._cachedWorkspaceBoxes = new Map();
+        this._postAllocationCallbacks = [];
+
+        stateAdjustment.connect('notify::value', () => this.layout_changed());
+    }
+
+    _computeWorkspacesBoxForState(state, workAreaBox, thumbnailsHeight) {
+        const workspaceBox = workAreaBox.copy();
+        const [startX, startY] = workAreaBox.get_origin();
+        const [width, height] = workspaceBox.get_size();
+        const { spacing } = this;
+        const { expandFraction } = this._workspacesThumbnails;
+
+        switch (state) {
+        case ControlsState.HIDDEN:
+            break;
+        case ControlsState.WINDOW_PICKER:
+            workspaceBox.set_origin(startX,
+                startY + spacing +
+                thumbnailsHeight + spacing * expandFraction);
+            workspaceBox.set_size(width,
+                height -
+                thumbnailsHeight - spacing * expandFraction);
+            break;
+        // case ControlsState.APP_GRID:
+        //     workspaceBox.set_origin(startX, startY + spacing);
+        //     workspaceBox.set_size(
+        //         width,
+        //         Math.round(height * SMALL_WORKSPACE_RATIO));
+        //     break;
+        }
+
+        return workspaceBox;
+    }
+
+    _getAppDisplayBoxForState(state, workAreaBox) {
+        const [startX, startY] = workAreaBox.get_origin();
+        const [width, height] = workAreaBox.get_size();
+        const appDisplayBox = new Clutter.ActorBox();
+        const { spacing } = this;
+
+        switch (state) {
+        case ControlsState.HIDDEN:
+        case ControlsState.WINDOW_PICKER:
+            appDisplayBox.set_origin(startX, workAreaBox.y2);
+            break;
+        // case ControlsState.APP_GRID:
+        //     appDisplayBox.set_origin(startX,
+        //         startY + spacing);
+        //     break;
+        }
+
+        appDisplayBox.set_size(width,
+            height -
+            spacing);
+
+        return appDisplayBox;
+    }
+
+    _runPostAllocation() {
+        if (this._postAllocationCallbacks.length === 0)
+            return;
+
+        this._postAllocationCallbacks.forEach(cb => cb());
+        this._postAllocationCallbacks = [];
+    }
+
+    vfunc_set_container(container) {
+        this._container = container;
+        if (container)
+            this.hookup_style(container);
+    }
+
+    vfunc_get_preferred_width(_container, _forHeight) {
+        // The MonitorConstraint will allocate us a fixed size anyway
+        return [0, 0];
+    }
+
+    vfunc_get_preferred_height(_container, _forWidth) {
+        // The MonitorConstraint will allocate us a fixed size anyway
+        return [0, 0];
+    }
+
+    vfunc_allocate(_container, _box, flags) {
+        const childBox = new Clutter.ActorBox();
+
+        const { spacing } = this;
+
+        const monitor = Main.layoutManager.findMonitorForActor(this._container);
+        const workArea = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
+        const startX = workArea.x - monitor.x;
+        const startY = workArea.y - monitor.y;
+        const workAreaBox = new Clutter.ActorBox();
+        workAreaBox.set_origin(startX, startY);
+        workAreaBox.set_size(workArea.width, workArea.height);
+        const [width, height] = workAreaBox.get_size();
+        let availableHeight = height;
+        const availableWidth = width;
+
+        // Search entry
+        // let [searchHeight] = this._searchEntry.get_preferred_height(width);
+        // childBox.set_origin(startX, startY);
+        // childBox.set_size(width, searchHeight);
+        // this._searchEntry.allocate(childBox);
+
+        // availableHeight -= searchHeight + spacing;
+
+        // Dash
+        // const maxDashHeight = Math.round(workAreaBox.get_height() * DASH_MAX_HEIGHT_RATIO);
+        // this._dash.setMaxSize(width, maxDashHeight);
+
+        // let [, dashHeight] = this._dash.get_preferred_height(width);
+        // dashHeight = Math.min(dashHeight, maxDashHeight);
+        // childBox.set_origin(startX, startY + height - dashHeight);
+        // childBox.set_size(width, dashHeight);
+        // this._dash.allocate(childBox);
+
+        // availableHeight -= dashHeight + spacing;
+
+        // Workspace Thumbnails
+        let thumbnailsHeight = 0;
+        if (this._workspacesThumbnails.visible) {
+            const { expandFraction } = this._workspacesThumbnails;
+            [thumbnailsHeight] =
+                this._workspacesThumbnails.get_preferred_height(width);
+            thumbnailsHeight = Math.min(
+                thumbnailsHeight * expandFraction,
+                height * WorkspaceThumbnail.MAX_THUMBNAIL_SCALE);
+            childBox.set_origin(startX, startY + spacing);
+            childBox.set_size(width, thumbnailsHeight);
+            this._workspacesThumbnails.allocate(childBox, flags);
+        }
+
+        // Workspaces
+        let params = [workAreaBox, thumbnailsHeight];
+        const transitionParams = this._stateAdjustment.getStateTransitionParams();
+
+        // Update cached boxes
+        for (const state of Object.values(ControlsState)) {
+            this._cachedWorkspaceBoxes.set(
+                state, this._computeWorkspacesBoxForState(state, ...params));
+        }
+
+        let workspacesBox;
+        if (!transitionParams.transitioning) {
+            workspacesBox = this._cachedWorkspaceBoxes.get(transitionParams.currentState);
+        } else {
+            const initialBox = this._cachedWorkspaceBoxes.get(transitionParams.initialState);
+            const finalBox = this._cachedWorkspaceBoxes.get(transitionParams.finalState);
+            workspacesBox = initialBox.interpolate(finalBox, transitionParams.progress);
+        }
+
+        this._workspacesDisplay.allocate(workspacesBox, flags);
+
+        // AppDisplay
+        // if (this._appDisplay.visible) {
+        //     const workspaceAppGridBox =
+        //         this._cachedWorkspaceBoxes.get(ControlsState.APP_GRID);
+
+        //     params = [workAreaBox, searchHeight, dashHeight, workspaceAppGridBox];
+        //     let appDisplayBox;
+        //     if (!transitionParams.transitioning) {
+        //         appDisplayBox =
+        //             this._getAppDisplayBoxForState(transitionParams.currentState, ...params);
+        //     } else {
+        //         const initialBox =
+        //             this._getAppDisplayBoxForState(transitionParams.initialState, ...params);
+        //         const finalBox =
+        //             this._getAppDisplayBoxForState(transitionParams.finalState, ...params);
+
+        //         appDisplayBox = initialBox.interpolate(finalBox, transitionParams.progress);
+        //     }
+
+        //     this._appDisplay.allocate(appDisplayBox);
+        // }
+
+        // Search
+        // childBox.set_origin(startX, startY + searchHeight + spacing);
+        // childBox.set_size(availableWidth, availableHeight);
+
+        // this._searchController.allocate(childBox);
+
+        this._runPostAllocation();
+    }
+
+    ensureAllocation() {
+        this.layout_changed();
+        return new Promise(
+            resolve => this._postAllocationCallbacks.push(resolve));
+    }
+
+    getWorkspacesBoxForState(state) {
+        return this._cachedWorkspaceBoxes.get(state);
+    }
+});
+
+var OverviewAdjustment = GObject.registerClass({
+    Properties: {
+        'gesture-in-progress': GObject.ParamSpec.boolean(
+            'gesture-in-progress', 'Gesture in progress', 'Gesture in progress',
+            GObject.ParamFlags.READWRITE,
+            false),
+    },
+}, class OverviewAdjustment extends St.Adjustment {
+    _init(actor) {
+        super._init({
+            // actor,
+            value: ControlsState.WINDOW_PICKER,
+            lower: ControlsState.HIDDEN,
+            upper: ControlsState.APP_GRID,
+        });
+    }
+
+    getStateTransitionParams() {
+        const currentState = this.value;
+
+        const transition = this.get_transition('value');
+        let initialState = transition
+            ? transition.get_interval().peek_initial_value()
+            : currentState;
+        let finalState = transition
+            ? transition.get_interval().peek_final_value()
+            : currentState;
+
+        if (initialState > finalState) {
+            initialState = Math.ceil(initialState);
+            finalState = Math.floor(finalState);
+        } else {
+            initialState = Math.floor(initialState);
+            finalState = Math.ceil(finalState);
+        }
+
+        const length = Math.abs(finalState - initialState);
+        const progress = length > 0
+            ? Math.abs((currentState - initialState) / length)
+            : 1;
+
+        return {
+            transitioning: transition !== null || this.gestureInProgress,
+            currentState,
+            initialState,
+            finalState,
+            progress,
+        };
+    }
+});
+
+var ControlsManager = GObject.registerClass(
+class ControlsManager extends St.Widget {
+    _init() {
+        super._init({
+            style_class: 'controls-manager',
+            x_expand: true,
+            y_expand: true,
+            clip_to_allocation: true,
+        });
+
+        let workspaceManager = global.workspace_manager;
+        let activeWorkspaceIndex = workspaceManager.get_active_workspace_index();
+
+        this._workspaceAdjustment = new St.Adjustment({
+            // actor: this,
+            value: activeWorkspaceIndex,
+            lower: 0,
+            page_increment: 1,
+            page_size: 1,
+            step_increment: 0,
+            upper: workspaceManager.n_workspaces,
+        });
+
+        this._stateAdjustment = new OverviewAdjustment(this);
+        this._stateAdjustment.connect('notify::value', this._update.bind(this));
+
+        this._nWorkspacesNotifyId =
+            workspaceManager.connect('notify::n-workspaces',
+                this._updateAdjustment.bind(this));
+
+        Main.layoutManager.connect('monitors-changed', () => {
+            this._thumbnailsBox.setMonitorIndex(Main.layoutManager.primaryIndex);
+        });
+        this._thumbnailsBox = new WorkspaceThumbnail.ThumbnailsBox(
+            this._workspaceAdjustment, Main.layoutManager.primaryIndex);
+        this._thumbnailsBox.connect('notify::should-show', () => {
+            this._thumbnailsBox.show();
+            this._thumbnailsBox.ease_property('expand-fraction',
+                this._thumbnailsBox.should_show ? 1 : 0, {
+                    duration: SIDE_CONTROLS_ANIMATION_TIME,
+                    mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                    onComplete: () => this._updateThumbnailsBox(),
+                });
+        });
+
+        this._workspacesDisplay = new WorkspacesView.WorkspacesDisplay(
+            this,
+            this._workspaceAdjustment,
+            this._stateAdjustment);
+        // this._workspacesDisplay = new WorkspacesView.WorkspacesDisplay(
+        //     this,
+        //     this._workspaceAdjustment);
+
+        this.add_child(this._thumbnailsBox);
+        this.add_child(this._workspacesDisplay);
+
+        this.layout_manager = new ControlsManagerLayout(
+            // this._searchEntryBin,
+            // this._appDisplay,
+            this._workspacesDisplay,
+            this._thumbnailsBox,
+            // this._searchController,
+            // this.dash,
+            this._stateAdjustment);
+
+        this.connect('destroy', this._onDestroy.bind(this));
+
+        this._update();
+    }
+
+    _getFitModeForState(state) {
+        switch (state) {
+        case ControlsState.HIDDEN:
+        case ControlsState.WINDOW_PICKER:
+            return WorkspacesView.FitMode.SINGLE;
+        // case ControlsState.APP_GRID:
+        //     return WorkspacesView.FitMode.ALL;
+        default:
+            return WorkspacesView.FitMode.SINGLE;
+        }
+    }
+
+    _getThumbnailsBoxParams() {
+        const { initialState, finalState, progress } =
+            this._stateAdjustment.getStateTransitionParams();
+
+        const paramsForState = s => {
+            let opacity, scale, translationY;
+            switch (s) {
+            case ControlsState.HIDDEN:
+            case ControlsState.WINDOW_PICKER:
+                opacity = 255;
+                scale = 1;
+                translationY = 0;
+                break;
+            // case ControlsState.APP_GRID:
+            //     opacity = 0;
+            //     scale = 0.5;
+            //     translationY = this._thumbnailsBox.height / 2;
+            //     break;
+            default:
+                opacity = 255;
+                scale = 1;
+                translationY = 0;
+                break;
+            }
+
+            return { opacity, scale, translationY };
+        };
+
+        const initialParams = paramsForState(initialState);
+        const finalParams = paramsForState(finalState);
+
+        return [
+            Util.lerp(initialParams.opacity, finalParams.opacity, progress),
+            Util.lerp(initialParams.scale, finalParams.scale, progress),
+            Util.lerp(initialParams.translationY, finalParams.translationY, progress),
+        ];
+    }
+
+    _updateThumbnailsBox(animate = false) {
+        const { shouldShow } = this._thumbnailsBox;
+        // const { searchActive } = this._searchController;
+        const [opacity, scale, translationY] = this._getThumbnailsBoxParams();
+
+        const thumbnailsBoxVisible = shouldShow && opacity !== 0;
+        if (thumbnailsBoxVisible) {
+            this._thumbnailsBox.opacity = 0;
+            this._thumbnailsBox.visible = thumbnailsBoxVisible;
+        }
+
+        const params = {
+            opacity: opacity,
+            duration: animate ? SIDE_CONTROLS_ANIMATION_TIME : 0,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => (this._thumbnailsBox.visible = thumbnailsBoxVisible),
+        };
+
+        if (true) {
+            params.scale_x = scale;
+            params.scale_y = scale;
+            params.translation_y = translationY;
+        }
+
+        this._thumbnailsBox.ease(params);
+    }
+
+    _updateAppDisplayVisibility(stateTransitionParams = null) {
+        // if (!stateTransitionParams)
+        //     stateTransitionParams = this._stateAdjustment.getStateTransitionParams();
+
+        // const { initialState, finalState } = stateTransitionParams;
+        // const state = Math.max(initialState, finalState);
+
+        // this._appDisplay.visible =
+        //     state > ControlsState.WINDOW_PICKER &&
+        //     !this._searchController.searchActive;
+    }
+
+    _update() {
+        const params = this._stateAdjustment.getStateTransitionParams();
+
+        const fitMode = Util.lerp(
+            this._getFitModeForState(params.initialState),
+            this._getFitModeForState(params.finalState),
+            params.progress);
+
+        const { fitModeAdjustment } = this._workspacesDisplay;
+        fitModeAdjustment.value = fitMode;
+
+        this._updateThumbnailsBox();
+        this._updateAppDisplayVisibility(params);
+    }
+
+    _onSearchChanged() {
+        // const { searchActive } = this._searchController;
+
+        // if (!searchActive) {
+        //     this._updateAppDisplayVisibility();
+        //     this._workspacesDisplay.reactive = true;
+        //     this._workspacesDisplay.setPrimaryWorkspaceVisible(true);
+        // } else {
+        //     this._searchController.show();
+        // }
+
+        // this._updateThumbnailsBox(true);
+
+        // this._appDisplay.ease({
+        //     opacity: searchActive ? 0 : 255,
+        //     duration: SIDE_CONTROLS_ANIMATION_TIME,
+        //     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        //     onComplete: () => this._updateAppDisplayVisibility(),
+        // });
+        // this._workspacesDisplay.ease({
+        //     opacity: searchActive ? 0 : 255,
+        //     duration: SIDE_CONTROLS_ANIMATION_TIME,
+        //     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        //     onComplete: () => {
+        //         this._workspacesDisplay.reactive = !searchActive;
+        //         this._workspacesDisplay.setPrimaryWorkspaceVisible(!searchActive);
+        //     },
+        // });
+        // this._searchController.ease({
+        //     opacity: searchActive ? 255 : 0,
+        //     duration: SIDE_CONTROLS_ANIMATION_TIME,
+        //     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        //     onComplete: () => (this._searchController.visible = searchActive),
+        // });
+    }
+
+    _onShowAppsButtonToggled() {
+        // if (this._ignoreShowAppsButtonToggle)
+        //     return;
+
+        // const checked = this.dash.showAppsButton.checked;
+
+        // const value = checked
+        //     ? ControlsState.APP_GRID : ControlsState.WINDOW_PICKER;
+        // this._stateAdjustment.remove_transition('value');
+        // this._stateAdjustment.ease(value, {
+        //     duration: SIDE_CONTROLS_ANIMATION_TIME,
+        //     mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        // });
+    }
+
+    _toggleAppsPage() {
+        // if (Main.overview.visible) {
+        //     const checked = this.dash.showAppsButton.checked;
+        //     this.dash.showAppsButton.checked = !checked;
+        // } else {
+        //     Main.overview.show(ControlsState.APP_GRID);
+        // }
+    }
+
+    _shiftState(direction) {
+        let { currentState, finalState } = this._stateAdjustment.getStateTransitionParams();
+
+        if (direction === Meta.MotionDirection.DOWN)
+            finalState = Math.max(finalState - 1, ControlsState.HIDDEN);
+        else if (direction === Meta.MotionDirection.UP)
+            finalState = Math.min(finalState + 1, ControlsState.WINDOW_PICKER);
+
+        if (finalState === currentState)
+            return;
+
+        if (currentState === ControlsState.HIDDEN &&
+            finalState === ControlsState.WINDOW_PICKER) {
+            Main.coverview.show();
+        } else if (finalState === ControlsState.HIDDEN) {
+            Main.coverview.hide();
+        } else {
+            this._stateAdjustment.ease(finalState, {
+                duration: SIDE_CONTROLS_ANIMATION_TIME,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+                // onComplete: () => {
+                //     this.dash.showAppsButton.checked =
+                //         finalState === ControlsState.APP_GRID;
+                // },
+            });
+        }
+    }
+
+    _onDestroy() {
+        global.workspace_manager.disconnect(this._nWorkspacesNotifyId);
+    }
+
+    _updateAdjustment() {
+        let workspaceManager = global.workspace_manager;
+        let newNumWorkspaces = workspaceManager.n_workspaces;
+        let activeIndex = workspaceManager.get_active_workspace_index();
+
+        this._workspaceAdjustment.upper = newNumWorkspaces;
+
+        // A workspace might have been inserted or removed before the active
+        // one, causing the adjustment to go out of sync, so update the value
+        this._workspaceAdjustment.remove_transition('value');
+        this._workspaceAdjustment.value = activeIndex;
+    }
+
+    vfunc_unmap() {
+        this._workspacesDisplay.hide();
+        super.vfunc_unmap();
+    }
+
+    animateToOverview(state, callback) {
+        this._workspacesDisplay.prepareToEnterOverview();
+        if (!this._workspacesDisplay.activeWorkspaceHasMaximizedWindows())
+            Main.coverview.fadeOutDesktop();
+
+        this._stateAdjustment.value = ControlsState.HIDDEN;
+        global.log("coverview controls ready to animate, animateToOverview");
+        this._stateAdjustment.ease(state, {
+            duration: Overview.ANIMATION_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onStopped: () => {
+                if (callback)
+                    callback();
+            },
+        });
+    }
+
+    animateFromOverview(callback) {
+        this._workspacesDisplay.prepareToLeaveOverview();
+        if (!this._workspacesDisplay.activeWorkspaceHasMaximizedWindows())
+            Main.coverview.fadeInDesktop();
+
+        this._stateAdjustment.ease(ControlsState.HIDDEN, {
+            duration: Overview.ANIMATION_TIME,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onStopped: () => {
+                // this.dash.showAppsButton.checked = false;
+                // this._ignoreShowAppsButtonToggle = false;
+
+                if (callback)
+                    callback();
+            },
+        });
+    }
+
+    getWorkspacesBoxForState(state) {
+        return this.layoutManager.getWorkspacesBoxForState(state);
+    }
+});

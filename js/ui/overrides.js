@@ -128,11 +128,12 @@ function overrideClutter() {
 
 function overrideMeta() {
     Meta.BackgroundActor.new_for_screen = function(screen) {
-        if (!Meta.is_wayland_compositor()) {
-            return Meta.X11BackgroundActor.new_for_display(global.display);
-        } else {
-            return new Clutter.Actor();
-        }
+        return new Clutter.Actor();
+        // if (!Meta.is_wayland_compositor()) {
+        //     return Meta.X11BackgroundActor.new_for_display(global.display);
+        // } else {
+        //     return new Clutter.Actor();
+        // }
     }
 
     Meta.disable_unredirect_for_screen = function(screen) {

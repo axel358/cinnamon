@@ -769,3 +769,7 @@ function wiggle(actor, params) {
         }
     });
 }
+
+function lerp(start, end, progress) {
+    return start + progress * (end - start);
+}

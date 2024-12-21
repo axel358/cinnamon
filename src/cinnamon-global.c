@@ -34,7 +34,6 @@ enum {
   PROP_BOTTOM_WINDOW_GROUP,
   PROP_WINDOW_GROUP,
   PROP_TOP_WINDOW_GROUP,
-  PROP_BACKGROUND_ACTOR,
   PROP_DESKLET_CONTAINER,
   PROP_WINDOW_MANAGER,
   PROP_SETTINGS,
@@ -131,9 +130,6 @@ cinnamon_global_get_property(GObject         *object,
       break;
     case PROP_TOP_WINDOW_GROUP:
       g_value_set_object (value, meta_get_top_window_group_for_display (global->meta_display));
-      break;
-    case PROP_BACKGROUND_ACTOR:
-      g_value_set_object (value, meta_get_x11_background_actor_for_display (global->meta_display));
       break;
     case PROP_DESKLET_CONTAINER:
       g_value_set_object (value, meta_get_desklet_container_for_display (global->meta_display));
@@ -372,13 +368,6 @@ cinnamon_global_class_init (CinnamonGlobalClass *klass)
                                    g_param_spec_object ("top-window-group",
                                                         "Top Window Group",
                                                         "Actor holding popup menus and other actors which must appear on top of the panels",
-                                                        CLUTTER_TYPE_ACTOR,
-                                                        G_PARAM_READABLE));
-  g_object_class_install_property (gobject_class,
-                                   PROP_BACKGROUND_ACTOR,
-                                   g_param_spec_object ("background-actor",
-                                                        "Background Actor",
-                                                        "Actor drawing root window background",
                                                         CLUTTER_TYPE_ACTOR,
                                                         G_PARAM_READABLE));
   g_object_class_install_property (gobject_class,

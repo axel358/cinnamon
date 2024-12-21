@@ -22,6 +22,7 @@ const HotCorner = imports.ui.hotCorner;
 const DeskletManager = imports.ui.deskletManager;
 const Panel = imports.ui.panel;
 const StartupAnimation = imports.ui.startupAnimation;
+const Background = imports.ui.background;
 
 function isPopupMetaWindow(actor) {
     switch(actor.meta_window.get_window_type()) {
@@ -280,9 +281,17 @@ LayoutManager.prototype = {
         this.edgeLeft = null;
         this.hideIdleId = 0;
         this._chrome = new Chrome(this);
+        this._pendingLoadBackground = false;
 
         this.enabledEdgeFlip = global.settings.get_boolean("enable-edge-flip");
         this.edgeFlipDelay = global.settings.get_int("edge-flip-delay");
+
+        this.overviewGroup = new St.Widget({
+            name: 'overviewGroup',
+            visible: false,
+            reactive: true,
+        });
+        this.addChrome(this.overviewGroup);
 
         this.keyboardBox = new St.BoxLayout({ name: 'keyboardBox',
                                               reactive: true,
@@ -292,6 +301,11 @@ LayoutManager.prototype = {
         this.addChrome(this.keyboardBox, { visibleInFullscreen: true, affectsStruts: false });
 
         this._keyboardHeightNotifyId = 0;
+
+        this._backgroundGroup = new Meta.BackgroundGroup();
+        global.window_group.add_child(this._backgroundGroup);
+        global.window_group.set_child_below_sibling(this._backgroundGroup, null);
+        this._bgManagers = [];
 
         this._monitorsChanged();
 
@@ -324,6 +338,30 @@ LayoutManager.prototype = {
         this.edgeLeft.delay = this.edgeFlipDelay;
 
         this.hotCornerManager = new HotCorner.HotCornerManager();
+
+        // this._loadBackground();
+    },
+
+    showOverview() {
+        this.overviewGroup.show();
+
+        this._chrome._inOverview = true;
+        this._chrome._updateVisibility();
+    },
+
+    hideOverview() {
+        this.overviewGroup.hide();
+
+        this._chrome._inOverview = false;
+        this._chrome._updateVisibility();
+    },
+
+    getWorkAreaForMonitor(monitorIndex) {
+        // Assume that all workspaces will have the same
+        // struts and pick the first one.
+        let workspaceManager = global.workspace_manager;
+        let ws = workspaceManager.get_workspace_by_index(0);
+        return ws.get_work_area_for_monitor(monitorIndex);
     },
 
     _toggleExpo: function() {
@@ -352,6 +390,46 @@ LayoutManager.prototype = {
         this.primaryMonitor = this.monitors[this.primaryIndex];
     },
 
+    _createBackgroundManager(monitorIndex) {
+        let bgManager = new Background.BackgroundManager({ container: this._backgroundGroup,
+                                                           layoutManager: this,
+                                                           monitorIndex });
+
+        // bgManager.connect('changed', this._addBackgroundMenu.bind(this));
+        // this._addBackgroundMenu(bgManager);
+
+        return bgManager;
+    },
+
+    _waitLoaded(bgManager) {
+        return new Promise(resolve => {
+            const id = bgManager.connect('loaded', () => {
+                bgManager.disconnect(id);
+                resolve();
+            });
+        });
+    },
+
+    _updateBackgrounds() {
+        for (let i = 0; i < this._bgManagers.length; i++)
+            this._bgManagers[i].destroy();
+
+        this._bgManagers = [];
+
+        // if (Main.sessionMode.isGreeter)
+        //     return Promise.resolve();
+
+        for (let i = 0; i < this.monitors.length; i++) {
+            let bgManager = this._createBackgroundManager(i);
+            this._bgManagers.push(bgManager);
+
+            if (i != this.primaryIndex && this._startingUp)
+                bgManager.backgroundActor.hide();
+        }
+
+        return Promise.all(this._bgManagers.map(this._waitLoaded));
+    },
+
     _updateBoxes: function() {
         if (this.hotCornerManager)
             this.hotCornerManager.update();
@@ -361,6 +439,7 @@ LayoutManager.prototype = {
     _monitorsChanged: function() {
         this._updateMonitors();
         this._updateBoxes();
+        this._updateBackgrounds();
         this.emit('monitors-changed');
     },
 
@@ -795,7 +874,7 @@ Chrome.prototype = {
                 visible = true;
             else {
                 let monitor = this.findMonitorForActor(actorData.actor);
-                
+
                 if (!actorData.visibleInFullscreen && monitor && monitor.inFullscreen)
                     visible = false;
                 else
