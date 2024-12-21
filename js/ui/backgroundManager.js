@@ -35,21 +35,11 @@ var BackgroundManager = class {
     }
 
     showBackground() {
-        if (Meta.is_wayland_compositor()) {
-            global.bottom_window_group.show();
-        }
-        else {
-            global.background_actor.show();
-        }
+        global.bottom_window_group.show();
     }
 
     hideBackground() {
-        if (Meta.is_wayland_compositor()) {
-            global.bottom_window_group.hide();
-        }
-        else {
-            global.background_actor.hide();
-        }
+        global.bottom_window_group.hide();
     }
 
     _onColorShadingTypeChanged(schema, key) {
