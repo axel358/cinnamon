@@ -141,7 +141,11 @@ function RadioButtonGroup() {
 
 RadioButtonGroup.prototype = {
    _init: function() {
-      this.actor = new St.BoxLayout({ vertical: true, width: 250 });
+      this.actor = new St.BoxLayout({
+        vertical: true,
+        width: 250,
+        x_expand: true,
+    });
       this._buttons = [];
       this._activeId = null;
    },
@@ -154,7 +158,7 @@ RadioButtonGroup.prototype = {
          }));
 
       this._buttons.push({ id: buttonId, button: this.radioButton });
-      this.actor.add(this.radioButton.actor, { x_fill: true, y_fill: false, y_align: St.Align.MIDDLE });
+      this.actor.add_child(this.radioButton.actor);
    },
 
    radioChanged: function(actor) {

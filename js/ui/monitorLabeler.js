@@ -29,7 +29,7 @@ var MonitorLabel = class {
 
         this._label = new St.Label();
         this._label.clutter_text.set_markup(label_text);
-        this.actor.add(this._label);
+        this.actor.add_child(this._label);
 
         Main.uiGroup.add_child(this.actor);
 

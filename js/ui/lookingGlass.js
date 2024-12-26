@@ -279,10 +279,13 @@ class Inspector {
         this._eventHandler = eventHandler;
         Main.pushModal(this._eventHandler);
         container.add_actor(eventHandler);
-        this._displayText = new St.Label();
-        eventHandler.add(this._displayText, { expand: true });
-        this._passThroughText = new St.Label({style: 'text-align: center;'});
-        eventHandler.add(this._passThroughText, { expand: true });
+        this._displayText = new St.Label({ x_expand: true });
+        eventHandler.add_child(this._displayText);
+        this._passThroughText = new St.Label({
+            style: 'text-align: center',
+            x_expand: true,
+        });
+        eventHandler.add_child(this._passThroughText);
 
         this._borderPaintTarget = null;
         this._borderPaintId = null;

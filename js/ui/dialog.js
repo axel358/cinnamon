@@ -54,15 +54,17 @@ class Dialog extends St.Widget {
         this.contentLayout = new St.BoxLayout({
             vertical: true,
             style_class: "dialog-content-box",
+            y_expand: true,
             important: true
         });
-        this._dialog.add(this.contentLayout, {
-            expand: true,
-            x_fill: true,
-            y_fill: true,
-            x_align: St.Align.MIDDLE,
-            y_align: St.Align.START
-        });
+        this._dialog.add_child(this.contentLayout);
+        // this._dialog.add(this.contentLayout, {
+        //     expand: true,
+        //     x_fill: true,
+        //     y_fill: true,
+        //     x_align: St.Align.MIDDLE,
+        //     y_align: St.Align.START
+        // });
 
         this.buttonLayout = new St.Widget ({
             layout_manager: new Clutter.BoxLayout({
@@ -70,10 +72,11 @@ class Dialog extends St.Widget {
                 spacing: 12,
             }),
         });
-        this._dialog.add(this.buttonLayout, {
-            x_align: St.Align.MIDDLE,
-            y_align: St.Align.MIDDLE
-        });
+        this._dialog.add_child(this.buttonLayout);
+        // this._dialog.add(this.buttonLayout, {
+        //     x_align: St.Align.MIDDLE,
+        //     y_align: St.Align.MIDDLE
+        // });
     }
 
     makeInactive() {

@@ -483,7 +483,7 @@ var InfoOSD = class {
 
         if (text) {
             let label = new St.Label({text: text});
-            this.actor.add(label);
+            this.actor.add_child(label);
         }
         Main.layoutManager.addChrome(this.actor, {
             visibleInFullscreen: false,
@@ -541,23 +541,21 @@ var InfoOSD = class {
     /**
      * addText:
      * @text (string): text to display
-     * @params (JSON): parameters to be used when adding text
      *
      * Adds a text label displaying @text to the OSD
      */
     addText(text, params) {
-        let label = new St.Label({text: text});
-        this.actor.add(label, params);
+        let label = new St.Label({ text: text });
+        this.actor.add_child(label);
     }
 
     /**
      * addActor:
      * @actor (St.Widget): actor to add
-     * @params (JSON): parameters to be used when adding actor
      *
      * Adds the actor @actor to the OSD
      */
-    addActor(actor, params) {
-        this.actor.add(actor, params);
+    addActor(actor) {
+        this.actor.add_child(actor);
     }
 };
