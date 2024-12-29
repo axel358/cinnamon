@@ -305,21 +305,21 @@ cinnamon_app_get_icon (CinnamonApp *app)
   if (app->running_state != NULL)
     window = window_backed_app_get_window (app);
 
-    if (window &&
-        meta_window_get_client_type (window) == META_WINDOW_CLIENT_TYPE_X11)
-      {
-        app->fallback_icon =
-          st_texture_cache_bind_cairo_surface_property (st_texture_cache_get_default (),
-                                                        G_OBJECT (window),
-                                                        "icon",
-                                                        16);
-      }
-    else
-      {
-        app->fallback_icon = g_themed_icon_new ("application-x-executable");
-      }
+  if (window &&
+      meta_window_get_client_type (window) == META_WINDOW_CLIENT_TYPE_X11)
+    {
+      app->fallback_icon =
+        st_texture_cache_bind_cairo_surface_property (st_texture_cache_get_default (),
+                                                      G_OBJECT (window),
+                                                      "icon",
+                                                      16);
+    }
+  else
+    {
+      app->fallback_icon = g_themed_icon_new ("application-x-executable");
+    }
 
-    return app->fallback_icon;
+  return app->fallback_icon;
 }
 
 /**
