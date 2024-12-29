@@ -81,7 +81,7 @@ struct _StButtonPrivate
 
 static guint button_signals[LAST_SIGNAL] = { 0, };
 
-G_DEFINE_TYPE_WITH_PRIVATE (StButton, st_button, ST_TYPE_BIN);
+G_DEFINE_TYPE_WITH_PRIVATE (StButton, st_button, ST_TYPE_BOX);
 
 static GType st_button_accessible_get_type (void) G_GNUC_CONST;
 
@@ -90,7 +90,7 @@ st_button_update_label_style (StButton *button)
 {
   ClutterActor *label;
 
-  label = st_bin_get_child (ST_BIN (button));
+  label = st_box_get_child (ST_BOX (button));
 
   /* check the child is really a label */
   if (!CLUTTER_IS_TEXT (label))
@@ -529,7 +529,7 @@ st_button_set_label (StButton    *button,
   else
     priv->text = g_strdup ("");
 
-  label = st_bin_get_child (ST_BIN (button));
+  label = st_box_get_child (ST_BOX (button));
 
   if (label && CLUTTER_IS_TEXT (label))
     {
@@ -542,8 +542,10 @@ st_button_set_label (StButton    *button,
                             "line-alignment", PANGO_ALIGN_CENTER,
                             "ellipsize", PANGO_ELLIPSIZE_END,
                             "use-markup", TRUE,
+                            "x-align", CLUTTER_ACTOR_ALIGN_CENTER,
+                            "y-align", CLUTTER_ACTOR_ALIGN_CENTER,
                             NULL);
-      st_bin_set_child (ST_BIN (button), label);
+      st_box_set_child (ST_BOX (button), label);
       st_widget_set_accessible_name (ST_WIDGET (button), text);
     }
 

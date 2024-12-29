@@ -27,7 +27,7 @@
 
 G_BEGIN_DECLS
 
-#include "st-bin.h"
+#include "st-box.h"
 
 #define ST_TYPE_BUTTON                (st_button_get_type ())
 #define ST_BUTTON(obj)                (G_TYPE_CHECK_INSTANCE_CAST ((obj), ST_TYPE_BUTTON, StButton))
@@ -50,14 +50,14 @@ typedef struct _StButtonClass         StButtonClass;
 struct _StButton
 {
   /*< private >*/
-  StBin parent_instance;
+  StBox parent_instance;
 
   StButtonPrivate *priv;
 };
 
 struct _StButtonClass
 {
-  StBinClass parent_class;
+  StBoxClass parent_class;
 
   /* vfuncs, not signals */
   void (* transition) (StButton     *button);
