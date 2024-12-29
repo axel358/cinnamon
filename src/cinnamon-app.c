@@ -66,6 +66,8 @@ struct _CinnamonApp
                           */
   GMenuDesktopAppInfo *info;
 
+  GIcon *fallback_icon;
+
   CinnamonAppRunningState *running_state;
 
   char *window_id_string;
@@ -278,6 +280,46 @@ window_backed_app_get_icon (CinnamonApp *app,
   st_widget_add_style_class_name (widget, "fallback-app-icon");
 
   return CLUTTER_ACTOR (widget);
+}
+
+/**
+ * cinnamon_app_get_icon:
+ *
+ * Look up the icon for this application
+ *
+ * Return value: (transfer none): A #GIcon
+ */
+GIcon *
+cinnamon_app_get_icon (CinnamonApp *app)
+{
+  MetaWindow *window;
+
+  g_return_val_if_fail (CINNAMON_IS_APP (app), NULL);
+
+  if (app->info)
+    return g_app_info_get_icon (G_APP_INFO (app->info));
+
+  if (app->fallback_icon)
+    return app->fallback_icon;
+
+  if (app->running_state != NULL)
+    window = window_backed_app_get_window (app);
+
+    if (window &&
+        meta_window_get_client_type (window) == META_WINDOW_CLIENT_TYPE_X11)
+      {
+        app->fallback_icon =
+          st_texture_cache_bind_cairo_surface_property (st_texture_cache_get_default (),
+                                                        G_OBJECT (window),
+                                                        "icon",
+                                                        16);
+      }
+    else
+      {
+        app->fallback_icon = g_themed_icon_new ("application-x-executable");
+      }
+
+    return app->fallback_icon;
 }
 
 /**
@@ -1408,6 +1450,8 @@ cinnamon_app_dispose (GObject *object)
       g_object_unref (app->info);
       app->info = NULL;
     }
+
+  g_clear_object (&app->fallback_icon);
 
   while (app->running_state)
     _cinnamon_app_remove_window (app, app->running_state->windows->data);
