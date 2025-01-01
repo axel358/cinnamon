@@ -221,11 +221,11 @@ var NotificationPolicy = GObject.registerClass({
     }
 
     get showInLockScreen() {
-        return false;
+        return true;
     }
 
     get detailsInLockScreen() {
-        return false;
+        return true;
     }
 });
 
