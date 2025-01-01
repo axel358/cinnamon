@@ -638,8 +638,6 @@ var NetworkAgent = class {
     }
 
     _showNotification(requestId, connection, settingName, hints, flags) {
-        let source = new MessageTray.Source(_('Network Manager'))
-
         let title, body;
 
         let connectionSetting = connection.get_setting_connection();
@@ -682,7 +680,9 @@ var NetworkAgent = class {
             return;
         }
 
-        let notification = new MessageTray.Notification(source, title, body);
+        const source = MessageTray.getSystemSource();
+        const notification = new MessageTray.Notification({ source, title, body });
+        notification.iconName = 'dialog-password-symbolic';
 
         notification.connect('clicked', () => {
             this._notificationAnswered = true;
@@ -696,8 +696,7 @@ var NetworkAgent = class {
             delete this._notifications[requestId];
         });
 
-        Main.messageTray.add(source);
-        source.notify(notification);
+        source.addNotification(notification);
     }
 
     _newRequest(agent, requestId, connection, settingName, hints, flags) {

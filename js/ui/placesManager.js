@@ -159,16 +159,14 @@ PlaceDeviceInfo.prototype = {
                 this.busyNotification = null;
             }
 
-            let source = new MessageTray.SystemNotificationSource();
+            let source = MessageTray.getSystemSource();
             Main.messageTray.add(source);
-            let notification = new MessageTray.Notification(source, msg1, msg2);
+            let notification = new MessageTray.Notification({ source, msg1, msg2 });
             notification.setTransient(true);
-            notification.setUrgency(persistent ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.NORMAL);
-            if (withButton) {
-                notification.addButton('system-undo', _("Retry"));
-                notification.connect('action-invoked', Lang.bind(this, this.remove));
-            }
-            source.notify(notification);
+            notification.urgency = persistent ? MessageTray.Urgency.CRITICAL : MessageTray.Urgency.NORMAL;
+            if (withButton)
+                notification.addAction(_("Retry"), this.remove.bind(this));
+            source.addNotification(notification);
             if (persistent) {
                 this.busyNotification = notification;
                 this.destroySignalId = notification.connect("destroy", () => {

@@ -792,14 +792,15 @@ class RecentButton extends SimpleMenuItem {
             Gio.app_info_launch_default_for_uri(this.uri, global.create_app_launch_context());
             this.applet.menu.close();
         } catch (e) {
-            let source = new MessageTray.SystemNotificationSource();
-            Main.messageTray.add(source);
-            let notification = new MessageTray.Notification(source,
+            const source = new MessageTray.getSystemSource();
+            const notification = new MessageTray.Notification({
+                source,
                 _("This file is no longer available"),
-                e.message);
+                e.message
+            });
             notification.setTransient(true);
-            notification.setUrgency(MessageTray.Urgency.NORMAL);
-            source.notify(notification);
+            notification.urgency = MessageTray.Urgency.NORMAL;
+            source.addNotification(notification);
         }
     }
 
@@ -905,14 +906,15 @@ class FavoriteButton extends SimpleMenuItem {
             XApp.Favorites.get_default().launch(this.uri, 0);
             this.applet.menu.close();
         } catch (e) {
-            let source = new MessageTray.SystemNotificationSource();
-            Main.messageTray.add(source);
-            let notification = new MessageTray.Notification(source,
+            const source = new MessageTray.getSystemSource();
+            const notification = new MessageTray.Notification({
+                source,
                 _("This file is no longer available"),
-                e.message);
+                e.message
+            });
             notification.setTransient(true);
-            notification.setUrgency(MessageTray.Urgency.NORMAL);
-            source.notify(notification);
+            notification.urgency = MessageTray.Urgency.NORMAL;
+            source.addNotification(notification);
         }
     }
 

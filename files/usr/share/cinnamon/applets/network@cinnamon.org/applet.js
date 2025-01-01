@@ -1726,24 +1726,6 @@ NMDeviceWireless.prototype = {
     },
 };
 
-function NMMessageTraySource() {
-    this._init();
-}
-
-NMMessageTraySource.prototype = {
-    __proto__: MessageTray.Source.prototype,
-
-    _init: function() {
-        MessageTray.Source.prototype._init.call(this, _("Network Manager"));
-
-        let icon = new St.Icon({ icon_name: 'network-transmit-receive',
-                                 icon_type: St.IconType.SYMBOLIC,
-                                 icon_size: this.ICON_SIZE
-                               });
-        this._setSummaryIcon(icon);
-    }
-};
-
 function CinnamonNetworkApplet(metadata, orientation, panel_height, instance_id) {
     this._init(metadata, orientation, panel_height, instance_id);
 }
@@ -1943,11 +1925,10 @@ CinnamonNetworkApplet.prototype = {
 
     _ensureSource: function() {
         if (!this._source) {
-            this._source = new NMMessageTraySource();
+            this._source = new MessageTray.getSystemSource();
             this._source.connect('destroy', Lang.bind(this, function() {
                 this._source = null;
             }));
-            if (Main.messageTray) Main.messageTray.add(this._source);
         }
     },
 
@@ -2021,18 +2002,19 @@ CinnamonNetworkApplet.prototype = {
            or this._source will be cleared */
         this._ensureSource();
 
-        let icon = new St.Icon({ icon_name: iconName,
-                                 icon_type: St.IconType.SYMBOLIC,
-                                 icon_size: this._source.ICON_SIZE
-                               });
-        device._notification = new MessageTray.Notification(this._source, title, text,
-                                                            { icon: icon });
-        device._notification.setUrgency(urgency);
-        device._notification.setTransient(true);
+        let icon = new Gio.ThemedIcon({ name: iconName });
+        device._notification = new MessageTray.Notification({
+            source: this._source,
+            title: title,
+            body: text,
+            gicon: icon,
+            isTransient: true,
+        });
+        device._notification.urgency = urgency;
         device._notification.connect('destroy', function() {
             device._notification = null;
         });
-        this._source.notify(device._notification);
+        this._source.addNotification(device._notification);
     },
 
     _deviceAdded: function(client, device) {
@@ -2047,7 +2029,7 @@ CinnamonNetworkApplet.prototype = {
             wrapper._activationFailedId = wrapper.connect('activation-failed', Lang.bind(this, function(device, reason) {
                 // XXX: nm-applet has no special text depending on reason
                 // but I'm not sure of this generic message
-                this._notifyForDevice(device, 'network-error',
+                this._notifyForDevice(device, 'network-error-symbolic',
                                       _("Connection failed"),
                                       _("Activation of network connection failed"),
                                      MessageTray.Urgency.HIGH);

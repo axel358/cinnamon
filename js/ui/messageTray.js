@@ -1,64 +1,79 @@
 // -*- mode: js; js-indent-level: 4; indent-tabs-mode: nil -*-
 
 const Clutter = imports.gi.Clutter;
+const GObject = imports.gi.GObject;
 const GLib = imports.gi.GLib;
 const Gio = imports.gi.Gio;
 const Gtk = imports.gi.Gtk;
 const Atk = imports.gi.Atk;
-const Lang = imports.lang;
-const Mainloop = imports.mainloop;
+const Meta = imports.gi.Meta;
 const Pango = imports.gi.Pango;
 const Cinnamon = imports.gi.Cinnamon;
 const Signals = imports.signals;
 const St = imports.gi.St;
 
 const GnomeSession = imports.misc.gnomeSession;
+// const Calendar = imports.ui.Calendar;
+const Layout = imports.ui.layout;
 const Main = imports.ui.main;
+const MessageList = imports.ui.messageList;
 const PopupMenu = imports.ui.popupMenu;
 const Params = imports.misc.params;
 const Tweener = imports.ui.tweener;
 const Util = imports.misc.util;
 const AppletManager = imports.ui.appletManager;
 
-var ANIMATION_TIME = 0.2;
-var NOTIFICATION_CRITICAL_TIMEOUT_WITH_APPLET = 10;
-var SUMMARY_TIMEOUT = 1;
-var LONGER_SUMMARY_TIMEOUT = 4;
+var ANIMATION_TIME = 200;
 
-var HIDE_TIMEOUT = 0.2;
-var LONGER_HIDE_TIMEOUT = 0.6;
+const NOTIFICATION_TIMEOUT = 4000;
 
-const NOTIFICATION_IMAGE_SIZE = 125;
-const NOTIFICATION_IMAGE_OPACITY = 230; // 0 - 255
+var HIDE_TIMEOUT = 200;
+var LONGER_HIDE_TIMEOUT = 600;
 
-var State =  Object.freeze({
+const MAX_NOTIFICATIONS_IN_QUEUE = 3;
+const MAX_NOTIFICATIONS_PER_SOURCE = 3;
+
+const MAX_NOTIFICATION_BUTTONS = 3;
+
+const MOUSE_LEFT_ACTOR_THRESHOLD = 20;
+const IDLE_TIME = 1000;
+
+const DEFAULT_EXPAND_LINES = 6;
+
+var State = {
     HIDDEN: 0,
     SHOWING: 1,
     SHOWN: 2,
     HIDING: 3
-});
+};
 
 // These reasons are useful when we destroy the notifications received through
 // the notification daemon. We use EXPIRED for transient notifications that the
 // user did not interact with, DISMISSED for all other notifications that were
 // destroyed as a result of a user action, and SOURCE_CLOSED for the notifications
 // that were requested to be destroyed by the associated source.
-var NotificationDestroyedReason =  Object.freeze({
+var NotificationDestroyedReason = {
     EXPIRED: 1,
     DISMISSED: 2,
-    SOURCE_CLOSED: 3
-});
+    SOURCE_CLOSED: 3,
+    REPLACED: 4,
+};
 
 // Message tray has its custom Urgency enumeration. LOW, NORMAL and CRITICAL
 // urgency values map to the corresponding values for the notifications received
 // through the notification daemon. HIGH urgency value is used for chats received
 // through the Telepathy client.
-var Urgency = Object.freeze({
+var Urgency = {
     LOW: 0,
     NORMAL: 1,
     HIGH: 2,
     CRITICAL: 3
-});
+};
+
+var PrivacyScope = {
+    USER: 0,
+    SYSTEM: 1,
+};
 
 function _fixMarkup(text, allowMarkup) {
     if (allowMarkup) {
@@ -80,808 +95,997 @@ function _fixMarkup(text, allowMarkup) {
     return GLib.markup_escape_text(text, -1);
 }
 
-function URLHighlighter(text, lineWrap, allowMarkup) {
-    this._init(text, lineWrap, allowMarkup);
+class FocusGrabber {
+    constructor(actor) {
+        this._actor = actor;
+        this._prevKeyFocusActor = null;
+        this._focused = false;
+    }
+
+    grabFocus() {
+        if (this._focused)
+            return;
+
+        this._prevKeyFocusActor = global.stage.get_key_focus();
+
+        global.stage.connectObject('notify::key-focus',
+            this._focusActorChanged.bind(this), this);
+
+        // global.stage.connectObject('notify::key-focus',
+        //     this._focusActorChanged.bind(this), this);
+
+        // if (!this._actor.navigate_focus(null, St.DirectionType.TAB_FORWARD, false))
+        //     this._actor.grab_key_focus();
+
+        this._focused = true;
+    }
+
+    _focusUngrabbed() {
+        if (!this._focused)
+            return false;
+
+        global.stage.disconnectObject(this);
+
+        this._focused = false;
+        return true;
+    }
+
+    _focusActorChanged() {
+        let focusedActor = global.stage.get_key_focus();
+        if (!focusedActor || !this._actor.contains(focusedActor))
+            this._focusUngrabbed();
+    }
+
+    ungrabFocus() {
+        if (!this._focusUngrabbed())
+            return;
+
+        if (this._prevKeyFocusActor) {
+            global.stage.set_key_focus(this._prevKeyFocusActor);
+            this._prevKeyFocusActor = null;
+        } else {
+            let focusedActor = global.stage.get_key_focus();
+            if (focusedActor && this._actor.contains(focusedActor))
+                global.stage.set_key_focus(null);
+        }
+    }
 }
 
-URLHighlighter.prototype = {
-    _init: function (text, lineWrap, allowMarkup) {
-        if (!text)
-            text = '';
-        this.actor = new St.Label({ reactive: true, style_class: 'url-highlighter' });
-        this._linkColor = '#ccccff';
-        this.actor.connect('style-changed', Lang.bind(this, function () {
-            let [hasColor, color] = this.actor.get_theme_node().lookup_color('link-color', false);
-            if (hasColor) {
-                let linkColor = color.to_string().substr(0, 7);
-                if (linkColor != this._linkColor) {
-                    this._linkColor = linkColor;
-                    this._highlightUrls();
-                }
-            }
-        }));
-        if (lineWrap) {
-            this.actor.clutter_text.line_wrap = true;
-            this.actor.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-            this.actor.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
-        }
-
-        this.setMarkup(text, allowMarkup);
-        this.actor.connect('button-press-event', Lang.bind(this, function (actor, event) {
-            // Don't try to URL highlight when invisible.
-            // The MessageTray doesn't actually hide us, so
-            // we need to check for paint opacities as well.
-            if (!actor.visible || actor.get_paint_opacity() == 0)
-                return false;
-
-            // Keep Notification.actor from seeing this and taking
-            // a pointer grab, which would block our button-release-event
-            // handler, if an URL is clicked
-            return this._findUrlAtPos(event) != -1;
-        }));
-        this.actor.connect('button-release-event', Lang.bind(this, function (actor, event) {
-            if (!actor.visible || actor.get_paint_opacity() == 0)
-                return false;
-
-            let urlId = this._findUrlAtPos(event);
-            if (urlId != -1) {
-                let url = this._urls[urlId].url;
-                if (url.indexOf(':') == -1)
-                    url = 'http://' + url;
-                try {
-                    Gio.app_info_launch_default_for_uri(url, global.create_app_launch_context());
-                    return true;
-                } catch (e) {
-                    // TODO: remove this after gnome 3 release
-                    Util.spawn(['gio', 'open', url]);
-                    return true;
-                }
-            }
-            return false;
-        }));
-        this.actor.connect('motion-event', Lang.bind(this, function (actor, event) {
-            if (!actor.visible || actor.get_paint_opacity() == 0)
-                return false;
-
-            let urlId = this._findUrlAtPos(event);
-            if (urlId != -1 && !this._cursorChanged) {
-                global.set_cursor(Cinnamon.Cursor.POINTING_HAND);
-                this._cursorChanged = true;
-            } else if (urlId == -1) {
-                global.unset_cursor();
-                this._cursorChanged = false;
-            }
-            return false;
-        }));
-        this.actor.connect('leave-event', Lang.bind(this, function () {
-            if (!this.actor.visible || this.actor.get_paint_opacity() == 0)
-                return;
-
-            if (this._cursorChanged) {
-                this._cursorChanged = false;
-                global.unset_cursor();
-            }
-        }));
+// NotificationPolicy:
+// An object that holds all bits of configurable policy related to a notification
+// source, such as whether to play sound or honour the critical bit.
+//
+// A notification without a policy object will inherit the default one.
+var NotificationPolicy = GObject.registerClass({
+    GTypeFlags: GObject.TypeFlags.ABSTRACT,
+    Properties: {
+        'enable': GObject.ParamSpec.boolean(
+            'enable', 'enable', 'enable', GObject.ParamFlags.READABLE, true),
+        'enable-sound': GObject.ParamSpec.boolean(
+            'enable-sound', 'enable-sound', 'enable-sound',
+            GObject.ParamFlags.READABLE, true),
+        'display-notifications': GObject.ParamSpec.boolean(
+            'display-notifications', 'display-notifications', 'display-notifications',
+            GObject.ParamFlags.READABLE, true),
+        'force-expanded': GObject.ParamSpec.boolean(
+            'force-expanded', 'force-expanded', 'force-expanded',
+            GObject.ParamFlags.READABLE, false),
+        'show-in-lock-screen': GObject.ParamSpec.boolean(
+            'show-in-lock-screen', 'show-in-lock-screen', 'show-in-lock-screen',
+            GObject.ParamFlags.READABLE, false),
+        'details-in-lock-screen': GObject.ParamSpec.boolean(
+            'details-in-lock-screen', 'details-in-lock-screen', 'details-in-lock-screen',
+            GObject.ParamFlags.READABLE, false),
     },
-
-    setMarkup: function (text, allowMarkup) {
-        text = text ? _fixMarkup(text, allowMarkup) : '';
-        this._text = text;
-
-        this.actor.clutter_text.set_markup(text);
-        /* clutter_text.text contain text without markup */
-        this._urls = Util.findUrls(this.actor.clutter_text.text);
-        this._highlightUrls();
-    },
-
-    _highlightUrls: function () {
-        // text here contain markup
-        let urls = Util.findUrls(this._text);
-        let markup = '';
-        let pos = 0;
-        for (let i = 0; i < urls.length; i++) {
-            let url = urls[i];
-            let str = this._text.substr(pos, url.pos - pos);
-            markup += str + '<span foreground="' + this._linkColor + '"><u>' + url.url + '</u></span>';
-            pos = url.pos + url.url.length;
-        }
-        markup += this._text.substr(pos);
-        this.actor.clutter_text.set_markup(markup);
-    },
-
-    _findUrlAtPos: function (event) {
-        if (!this._urls.length)
-            return -1;
-
-        let success;
-        let [x, y] = event.get_coords();
-        let ct = this.actor.clutter_text;
-        [success, x, y] = ct.transform_stage_point(x, y);
-        if (success && x >= 0 && x <= ct.width
-            && y >= 0 && y <= ct.height) {
-            let pos = ct.coords_to_position(x, y);
-            for (let i = 0; i < this._urls.length; i++) {
-                let url = this._urls[i]
-                if (pos >= url.pos && pos <= url.pos + url.url.length)
-                    return i;
-            }
-        }
-        return -1;
-    }
-};
-
-
-/**
- * #Notification:
- * @short_description: A shell notification.
- * @source (object): The notification's Source
- * @title (string): The title/summary text
- * @body (string): Optional - body text
- * @params (object): Optional - additional params
- *
- * Creates a notification with the associated title and body
- *
- * @params can contain values for 'body', 'icon', 'titleMarkup',
- * 'bodyMarkup', and 'silent' parameters.
- *
- * By default, the icon shown is created by calling
- * source.createNotificationIcon(). However, if @params contains an 'icon'
- * parameter, the passed in icon will be shown.
- *
- * If @params contains a 'titleMarkup', or 'bodyMarkup' parameter
- * with the value %true, then the corresponding element is assumed to
- * use pango markup. If the parameter is not present for an element,
- * then anything that looks like markup in that element will appear
- * literally in the output.
- *
- * If @params contains a 'silent' parameter with the value %true, then
- * the associated sound effects are suppressed. Note that notifications
- * with an URGENT priority will always play a sound effect if there is
- * one set.
- */
-var Notification = class Notification {
-    constructor(source, title, body, params) {
-        title = Util.decodeHTML(title);
-        body = Util.decodeHTML(body);
-
-        this.source = source;
-        this.title = title;
-        this.urgency = Urgency.NORMAL;
-        this.resident = false;
-        // 'transient' is a reserved keyword in JS, so we have to use an alternate variable name
-        this.isTransient = false;
-        this.silent = false;
-        this._destroyed = false;
-        this._useActionIcons = false;
-        this._titleDirection = St.TextDirection.NONE;
-        this._scrollArea = null;
-        this._actionArea = null;
-        this._imageBin = null;
-        this._timestamp = new Date();
-        this._inNotificationBin = false;
-
-        source.connect('destroy', (source, reason) => { this.destroy(reason) });
-
-        this.actor = new St.Button({ accessible_role: Atk.Role.NOTIFICATION });
-        this.actor._parent_container = null;
-        this.actor.connect('clicked', () => this._onClicked());
-        this.actor.connect('destroy', () => this._onDestroy());
-
-        this._table = new St.Table({
-            name: 'notification',
-            reactive: true
-        });
-        this.actor.set_child(this._table);
-
-        this._buttonFocusManager = St.FocusManager.get_for_stage(global.stage);
-
-        // the banner box is now just a simple vbox.
-        // The first line should have the time, and the second the title.
-        // Time only shown inside message tray.
-        this._bannerBox = new St.BoxLayout({
-            vertical: true,
-            style: "spacing: 4px"
-        });
-        this._table.add(this._bannerBox, {
-            row: 0,
-            col: 1,
-            col_span: 2,
-            x_expand: false,
-            y_expand: false,
-            y_fill: false
-        });
-
-        this._timeLabel = new St.Label({ show_on_set_parent: false });
-        this._titleLabel = new St.Label();
-        this._titleLabel.clutter_text.line_wrap = true;
-        this._titleLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
-        this._bannerBox.add_actor(this._timeLabel);
-        this._bannerBox.add_actor(this._titleLabel);
-
-        // This is an empty cell that overlaps with this._bannerBox cell to ensure
-        // that this._bannerBox cell expands horizontally, while not forcing the
-        // this._imageBin that is also in col: 2 to expand horizontally.
-        this._table.add(new St.Bin(), {
-            row: 0,
-            col: 2,
-            y_expand: false,
-            y_fill: false
-        });
-
-        // notification dismiss button
-        let icon = new St.Icon({
-            icon_name: 'window-close',
-            icon_type: St.IconType.SYMBOLIC,
-            icon_size: 16
-        });
-        let closeButton = new St.Button({ child: icon, opacity: 128 });
-        closeButton.connect('clicked', Lang.bind(this, this.destroy));
-        closeButton.connect('notify::hover', function () { closeButton.opacity = closeButton.hover ? 255 : 128; });
-        this._table.add(closeButton, {
-            row: 0,
-            col: 3,
-            x_expand: false,
-            y_expand: false,
-            y_fill: false,
-            y_align: St.Align.START
-        });
-
-        // set icon, title, body
-        this.update(title, body, params);
-    }
-
-    // for backwards compatibility with old class constant
-    get IMAGE_SIZE() { return NOTIFICATION_IMAGE_SIZE; }
-
+}, class NotificationPolicy extends GObject.Object {
     /**
-     * update:
-     * @title (string): the new title
-     * @body (string): the new body
-     * @params (object): as in the Notification constructor
+     * Create a new policy for app.
      *
-     * Updates the notification timestamp, title, and body and
-     * regenerates the icon.
+     * This will be a NotificationApplicationPolicy for valid apps,
+     * or a NotificationGenericPolicy otherwise.
+     *
+     * @param {Cinnamon.App=} app
+     * @returns {NotificationPolicy}
      */
-    update(title, body, params) {
-        this._timestamp = new Date();
-        this._inNotificationBin = false;
-        params = Params.parse(params, {
-            icon: null,
-            titleMarkup: false,
-            bodyMarkup: false,
-            silent: false
+    static newForApp(app) {
+        // fallback to generic policy
+        if (!app?.get_app_info())
+            return new NotificationGenericPolicy();
+
+        const id = app.get_id().replace(/\.desktop$/, '');
+        return new NotificationApplicationPolicy(id);
+    }
+
+    // Do nothing for the default policy. These methods are only useful for the
+    // GSettings policy.
+    store() { }
+
+    destroy() {
+        this.run_dispose();
+    }
+
+    get enable() {
+        return true;
+    }
+
+    get enableSound() {
+        return true;
+    }
+
+    get displayNotifications() {
+        return true;
+    }
+
+    get forceExpanded() {
+        return false;
+    }
+
+    get showInLockScreen() {
+        return false;
+    }
+
+    get detailsInLockScreen() {
+        return false;
+    }
+});
+
+var NotificationGenericPolicy = GObject.registerClass({
+}, class NotificationGenericPolicy extends NotificationPolicy {
+    _init() {
+        super._init();
+        this.id = 'generic';
+
+        this._masterSettings = new Gio.Settings({schema_id: 'org.cinnamon.desktop.notifications'});
+        this._masterSettings.connect('changed', this._changed.bind(this));
+    }
+
+    destroy() {
+        this._masterSettings.run_dispose();
+
+        super.destroy();
+    }
+
+    _changed(settings, key) {
+        if (this.constructor.find_property(key))
+            this.notify(key);
+    }
+
+    get displayNotifications() {
+        return this._masterSettings.get_boolean('display-notifications');
+    }
+
+    get showInLockScreen() {
+        // return this._masterSettings.get_boolean('show-in-lock-screen');
+        return true;
+    }
+});
+
+var NotificationApplicationPolicy = GObject.registerClass({
+}, class NotificationApplicationPolicy extends NotificationPolicy {
+    _init(id) {
+        super._init();
+
+        this.id = id;
+        this._canonicalId = this._canonicalizeId(id);
+
+        this._masterSettings = new Gio.Settings({schema_id: 'org.cinnamon.desktop.notifications'});
+        this._settings = new Gio.Settings({
+            schema_id: 'org.cinnamon.desktop.notifications.application',
+            path: `/org/cinnamon/desktop/notifications/application/${this._canonicalId}/`,
         });
 
-        this.silent = params.silent;
-
-        if (this._icon && params.icon) {
-            this._icon.destroy();
-            this._icon = null;
-        }
-
-        if (!this._icon) {
-            this._icon = params.icon || this.source.createNotificationIcon();
-            this._table.add(this._icon, {
-                row: 0,
-                col: 0,
-                x_expand: false,
-                y_expand: false,
-                y_fill: false,
-                y_align: St.Align.START
-            });
-        }
-
-        // title: strip newlines, escape or validate markup, add bold markup
-        if (typeof (title) === "string") {
-            this.title = _fixMarkup(title.replace(/\n/g, ' '), params.titleMarkup);
-        } else {
-            this.title = "";
-        }
-        this._titleLabel.clutter_text.set_markup('<b>' + this.title + '</b>');
-
-        this._timeLabel.clutter_text.set_markup(this._timestamp.toLocaleTimeString());
-        this._timeLabel.hide();
-
-        this._setBodyArea(body, params.bodyMarkup);
+        this._masterSettings.connect('changed', this._changed.bind(this));
+        this._settings.connect('changed', this._changed.bind(this));
     }
 
-    _setBodyArea(text, allowMarkup) {
-        if (text) {
-            if (!this._scrollArea) {
-                /* FIXME: vscroll should be enabled
-                 * -vfade covers too much for this size of scrollable
-                 * -scrollview min-height is broken inside tray with a scrollview
-                 *
-                 * TODO: when scrollable:
-                 *
-                 * applet connects to this signal to enable captured-event passthru so you can grab the scrollbar:
-                 * let vscroll = this._scrollArea.get_vscroll_bar();
-                 * vscroll.connect('scroll-start', () => { this.emit('scrolling-changed', true) });
-                 * vscroll.connect('scroll-stop', () => { this.emit('scrolling-changed', false) });
-                 *
-                 * `enable_mouse_scrolling` makes it difficult to scroll when there are many notifications
-                 * in the tray because most of the area is these smaller scrollviews which capture the event.
-                 * ideally, this should only be disabled when the notification is in the tray and there are
-                 * many notifications.
-                 */
-                this._scrollArea = new St.ScrollView({
-                    name: 'notification-scrollview',
-                    vscrollbar_policy: St.PolicyType.NEVER,
-                    hscrollbar_policy: St.PolicyType.NEVER,
-                    enable_mouse_scrolling: false/*,
-                                                       style_class: 'vfade'*/ });
+    store() {
+        this._settings.set_string('application-id', `${this.id}.desktop`);
 
-                this._table.add(this._scrollArea, {
-                    row: 1,
-                    col: 2
-                });
-
-                let content = new St.BoxLayout({
-                    name: 'notification-body',
-                    vertical: true
-                });
-                this._scrollArea.add_actor(content);
-
-                // body label
-                this._bodyUrlHighlighter = new URLHighlighter("", true, false);
-                content.add(this._bodyUrlHighlighter.actor);
-            }
-            this._bodyUrlHighlighter.setMarkup(text, allowMarkup);
-        } else {
-            if (this._scrollArea) {
-                this._scrollArea.destroy()
-                this._scrollArea = null;
-                this._bodyUrlHighlighter.destroy()
-                this._bodyUrlHighlighter = null;
-            }
+        let apps = this._masterSettings.get_strv('application-children');
+        if (!apps.includes(this._canonicalId)) {
+            apps.push(this._canonicalId);
+            this._masterSettings.set_strv('application-children', apps);
         }
-        this._updateLayout();
     }
 
-    setIconVisible(visible) {
-        if (this._icon)
-            this._icon.visible = visible;
+    destroy() {
+        this._masterSettings.run_dispose();
+        this._settings.run_dispose();
+
+        super.destroy();
     }
 
-    /**
-      * scrollTo:
-      * @side (St.Side): St.Side.TOP or St.Side.BOTTOM
-      *
-      * Scrolls the content area (if scrollable) to the indicated edge
-      */
-    scrollTo(side) {
-        if (!this._scrollArea)
-            return;
-        let adjustment = this._scrollArea.vscroll.adjustment;
-        if (side == St.Side.TOP)
-            adjustment.value = adjustment.lower;
-        else if (side == St.Side.BOTTOM)
-            adjustment.value = adjustment.upper;
+    _changed(settings, key) {
+        if (this.constructor.find_property(key))
+            this.notify(key);
     }
 
-    _updateLayout() {
-        if (this._imageBin || this._scrollArea || this._actionArea) {
-            this._table.add_style_class_name('multi-line-notification');
-        } else {
-            this._table.remove_style_class_name('multi-line-notification');
-        }
-
-        if (this._imageBin) {
-            this._table.add_style_class_name('notification-with-image');
-        } else {
-            this._table.remove_style_class_name('notification-with-image');
-        }
-
-        if (this._scrollArea)
-            this._table.child_set(this._scrollArea, {
-                col: this._imageBin ? 2 : 1,
-                col_span: this._imageBin ? 2 : 3
-            });
-        if (this._actionArea)
-            this._table.child_set(this._actionArea, {
-                col: this._imageBin ? 2 : 1,
-                col_span: this._imageBin ? 2 : 3
-            });
+    _canonicalizeId(id) {
+        // Keys are restricted to lowercase alphanumeric characters and dash,
+        // and two dashes cannot be in succession
+        return id.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/--+/g, '-');
     }
 
-    setImage(image) {
-        if (this._imageBin)
-            this.unsetImage();
-        if (!image)
-            return;
-        this._imageBin = new St.Bin({
-            child: image,
-            opacity: NOTIFICATION_IMAGE_OPACITY
+    get enable() {
+        // return this._settings.get_boolean('enable');
+        return true;
+    }
+
+    get enableSound() {
+        // return this._settings.get_boolean('enable-sound-alerts');
+        return true;
+    }
+
+    get displayNotifications() {
+        return this._masterSettings.get_boolean('display-notifications') &&
+            this._settings.get_boolean('enable');
+    }
+
+    get forceExpanded() {
+        // return this._settings.get_boolean('force-expanded');
+        return false;
+    }
+
+    get showInLockScreen() {
+        // return this._masterSettings.get_boolean('show-in-lock-screen') &&
+        //     this._settings.get_boolean('show-in-lock-screen');
+        return true;
+    }
+
+    get detailsInLockScreen() {
+        // return this._settings.get_boolean('details-in-lock-screen');
+        return true;
+    }
+});
+
+var Action = GObject.registerClass(
+class Action extends GObject.Object {
+    constructor(label, callback) {
+        super();
+
+        this._label = label;
+        this._callback = callback;
+    }
+
+    get label() {
+        return this._label;
+    }
+
+    activate() {
+        this._callback();
+    }
+});
+
+var NotificationMessage = GObject.registerClass(
+class NotificationMessage extends MessageList.Message {
+    constructor(notification) {
+        super(notification.source);
+
+        this.notification = notification;
+
+        this.connect('close', () => {
+            this._closed = true;
+            if (this.notification)
+                this.notification.destroy(NotificationDestroyedReason.DISMISSED);
         });
-        this._table.add(this._imageBin, {
-            row: 1,
-            col: 1,
-            row_span: 2,
-            x_expand: false,
-            y_expand: false,
-            x_fill: false,
-            y_fill: false
+
+        // this._destroyId = notification.connect('destroy', () => {
+        //     this._disconnectNotificationSignals();
+        //     this.notification = null;
+        //     if (!this._closed)
+        //         this.close();
+        // });
+
+        // notification.connect('action-added', (_, action) => this._addAction(action));
+        // notification.connect('action-removed', (_, action) => this._removeAction(action));
+        notification.connectObject(
+            'action-added', (_, action) => this._addAction(action),
+            'action-removed', (_, action) => this._removeAction(action),
+            'destroy', () => {
+                this.notification = null;
+                if (!this._closed)
+                    this.close();
+            }, this);
+
+        notification.bind_property('title',
+            this, 'title',
+            GObject.BindingFlags.SYNC_CREATE);
+        notification.bind_property('body',
+            this, 'body',
+            GObject.BindingFlags.SYNC_CREATE);
+        notification.bind_property('use-body-markup',
+            this, 'use-body-markup',
+            GObject.BindingFlags.SYNC_CREATE);
+        notification.bind_property('datetime',
+            this, 'datetime',
+            GObject.BindingFlags.SYNC_CREATE);
+        notification.bind_property('gicon',
+            this, 'icon',
+            GObject.BindingFlags.SYNC_CREATE);
+
+        this._actions = new Map();
+        this.notification.actions.forEach(action => {
+            this._addAction(action);
         });
-        this._updateLayout();
     }
 
-    unsetImage() {
-        if (!this._imageBin)
-            return;
-        this._imageBin.destroy();
-        this._imageBin = null;
-        this._updateLayout();
+    vfunc_clicked() {
+        this.notification.activate();
     }
 
-    /**
-     * addButton:
-     * @id (number): the action ID
-     * @label (string): the label for the action's button
-     *
-     * Adds a button with the given @label to the notification. All
-     * action buttons will appear in a single row at the bottom of
-     * the notification.
-     *
-     * If the button is clicked, the notification will emit the
-     * %action-invoked signal with @id as a parameter.
-     */
-    addButton(id, label) {
-        if (!this._actionArea) {
-            this._actionArea = new St.BoxLayout({ name: 'notification-actions' });
-            this._table.add(this._actionArea, {
-                row: 2,
-                col: 1,
-                col_span: 3,
+    _disconnectNotificationSignals() {
+        if (this._destroyId)
+            this.notification.disconnect(this._destroyId);
+        this._destroyId = 0;
+    }
+
+    canClose() {
+        return true;
+    }
+
+    _addAction(action) {
+        if (!this._buttonBox) {
+            this._buttonBox = new St.BoxLayout({
                 x_expand: true,
-                y_expand: false,
-                x_fill: true,
-                y_fill: false,
-                x_align: St.Align.START
+                style_class: 'notification-buttons-bin',
             });
+            this.setActionArea(this._buttonBox);
+            global.focus_manager.add_group(this._buttonBox);
         }
 
-        let button = new St.Button({ can_focus: true });
-
-        if (this._useActionIcons
-            && id.endsWith("-symbolic")
-            && Gtk.IconTheme.get_default().has_icon(id)) {
-            button.add_style_class_name('notification-icon-button');
-            button.child = new St.Icon({ icon_name: id });
-        } else {
-            button.add_style_class_name('notification-button');
-            button.label = label;
-        }
-
-        if (this._actionArea.get_n_children() > 0)
-            this._buttonFocusManager.remove_group(this._actionArea);
-
-        this._actionArea.add(button);
-        this._buttonFocusManager.add_group(this._actionArea);
-        button.connect('clicked', Lang.bind(this, this._onActionInvoked, id));
-        this._updateLayout();
-    }
-
-    /**
-     * clearButtons:
-     *
-     * Removes all buttons.
-     */
-    clearButtons() {
-        if (!this._actionArea)
+        if (this._buttonBox.get_n_children() >= MAX_NOTIFICATION_BUTTONS)
             return;
-        this._actionArea.destroy();
-        this._actionArea = null;
-        this._updateLayout();
+
+        const button = new St.Button({
+            style_class: 'notification-button',
+            x_expand: true,
+            label: action.label,
+        });
+
+        button.connect('clicked', () => action.activate());
+
+        this._actions.set(action, button);
+        this._buttonBox.add_child(button);
     }
 
-    setUrgency(urgency) {
-        this.urgency = urgency;
+    _removeAction(action) {
+        this._actions.get(action)?.destroy();
+        this._actions.delete(action);
+    }
+});
+
+var Notification = class Notification extends GObject.Object {
+   constructor(params) {
+        super(params);
+
+        this._actions = [];
+
+        if (!this.datetime)
+            this.datetime = GLib.DateTime.new_now_local();
+
+        // Automatically update the datetime property when the notification
+        // is updated.
+        this.connect('notify', (o, pspec) => {
+            if (pspec.name === 'acknowledged') {
+                // Don't update datetime property
+            } else if (pspec.name === 'datetime') {
+                if (this._updateDatetimeId)
+                    GLib.source_remove(this._updateDatetimeId);
+                delete this._updateDatetimeId;
+            } else if (!this._updateDatetimeId) {
+                this._updateDatetimeId =
+                    GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+                        delete this._updateDatetimeId;
+                        this.datetime = GLib.DateTime.new_now_local();
+                        return GLib.SOURCE_REMOVE;
+                    });
+            }
+        });
     }
 
-    setResident(resident) {
-        this.resident = resident;
+    get actions() {
+        return this._actions;
     }
 
-    setTransient(isTransient) {
-        this.isTransient = isTransient;
+    get iconName() {
+        if (this.gicon instanceof Gio.ThemedIcon)
+            return this.gicon.iconName;
+        else
+            return null;
     }
 
-    setUseActionIcons(useIcons) {
-        this._useActionIcons = useIcons;
+    set iconName(iconName) {
+        this.gicon = new Gio.ThemedIcon({ name: iconName });
     }
 
-    _onActionInvoked(actor, mouseButtonClicked, id) {
-        this.emit('action-invoked', id);
-        if (!this.resident) {
+    get privacyScope() {
+        return this._privacyScope;
+    }
+
+    set privacyScope(privacyScope) {
+        if (!Object.values(PrivacyScope).includes(privacyScope))
+            throw new Error('out of range');
+
+        if (this._privacyScope === privacyScope)
+            return;
+
+        this._privacyScope = privacyScope;
+        this.notify('privacy-scope');
+    }
+
+    get urgency() {
+        return this._urgency;
+    }
+
+    set urgency(urgency) {
+        if (!Object.values(Urgency).includes(urgency))
+            throw new Error('out of range');
+
+        if (this._urgency === urgency)
+            return;
+
+        this._urgency = urgency;
+        this.notify('urgency');
+    }
+
+    // addAction:
+    // @label: the label for the action's button
+    // @callback: the callback for the action
+    addAction(label, callback) {
+        const action = new Action(label, () => {
+            callback();
+
             // We don't hide a resident notification when the user invokes one of its actions,
             // because it is common for such notifications to update themselves with new
             // information based on the action. We'd like to display the updated information
             // in place, rather than pop-up a new notification.
-            this.emit('done-displaying');
+            if (this.resident)
+                return;
+
             this.destroy();
-        }
+        });
+        this._actions.push(action);
+        this.emit('action-added', action);
+        return action;
     }
 
-    _onClicked() {
-        this.emit('clicked');
-        // We hide all types of notifications once the user clicks on them because the common
-        // outcome of clicking should be the relevant window being brought forward and the user's
-        // attention switching to the window.
-        this.emit('done-displaying');
-        if (!this.resident)
-            this.destroy();
+    removeAction(action) {
+        const index = this._actions.indexOf(action);
+        if (index < 0)
+            throw new Error('Action was already removed previously');
+
+        this._actions.splice(index, 1);
+        this.emit('action-removed', action);
     }
 
-    _onDestroy() {
-        if (this._destroyed)
+    clearActions() {
+        if (this._actions.length === 0)
             return;
-        this._destroyed = true;
-        if (!this._destroyedReason)
-            this._destroyedReason = NotificationDestroyedReason.DISMISSED;
-        this.emit('destroy', this._destroyedReason);
-        this.disconnectAll();
+
+        this._actions.forEach(action => {
+            this.emit('action-removed', action);
+        });
+        this._actions = [];
+    }
+
+    playSound() {
+        if (!this.source.policy.enableSound)
+            return;
+
+        this.sound?.play(this.title);
+    }
+
+    activate() {
+        this.emit('activated');
+
+        // We don't hide a resident notification when the user invokes one of its actions,
+        // because it is common for such notifications to update themselves with new
+        // information based on the action. We'd like to display the updated information
+        // in place, rather than pop-up a new notification.
+        if (this.resident)
+            return;
+
+        this.destroy();
+    }
+
+    destroy(reason = NotificationDestroyedReason.DISMISSED) {
+        this.emit('destroy', reason);
+
+        if (this._updateDatetimeId)
+            GLib.source_remove(this._updateDatetimeId);
+        delete this._updateDatetimeId;
+
+        this.run_dispose();
+    }
+}
+
+var Source = GObject.registerClass({
+    Properties: {
+        'count': GObject.ParamSpec.int(
+            'count', 'count', 'count',
+            GObject.ParamFlags.READABLE,
+            0, GLib.MAXINT32, 0),
+        'policy': GObject.ParamSpec.object(
+            'policy', 'policy', 'policy',
+            GObject.ParamFlags.READWRITE,
+            NotificationPolicy.$gtype),
+    },
+    Signals: {
+        'destroy': { param_types: [GObject.TYPE_UINT] },
+        'notification-added': { param_types: [Notification.$gtype] },
+        'notification-removed': { param_types: [Notification.$gtype] },
+        'notification-request-banner': {param_types: [Notification.$gtype]},
+    }
+}, class Source extends MessageList.BaseSource {
+    constructor(params) {
+        super(params);
+
+        this.notifications = [];
+
+        if (!this._policy)
+            this._policy = new NotificationGenericPolicy();
+    }
+
+    get policy() {
+        return this._policy;
+    }
+
+    set policy(policy) {
+        if (this._policy)
+            this._policy.destroy();
+        this._policy = policy;
+    }
+
+    get count() {
+        return this.notifications.length;
+    }
+
+    get unseenCount() {
+        return this.notifications.filter(n => !n.acknowledged).length;
+    }
+
+    get countVisible() {
+        return this.count > 1;
+    }
+
+    countUpdated() {
+        this.notify('count');
+    }
+
+    get narrowestPrivacyScope() {
+        return this.notifications.every(n => n.privacyScope === PrivacyScope.SYSTEM)
+            ? PrivacyScope.SYSTEM
+            : PrivacyScope.USER;
+    }
+
+    /* Fixme */
+    setTransient(isTransient) {
+        this.isTransient = isTransient;
+    }
+
+    _onNotificationDestroy(notification) {
+        let index = this.notifications.indexOf(notification);
+        if (index < 0)
+            throw new Error('Notification was already removed previously');
+
+        this.notifications.splice(index, 1);
+        this.emit('notification-removed', notification);
+        this.countUpdated();
+
+        if (!this._inDestruction && this.notifications.length === 0)
+            this.destroy();
+    }
+
+    addNotification(notification) {
+        if (this.notifications.includes(notification))
+            return;
+
+        while (this.notifications.length >= MAX_NOTIFICATIONS_PER_SOURCE) {
+            const [oldest] = this.notifications;
+            oldest.destroy(NotificationDestroyedReason.EXPIRED);
+        }
+
+        notification.connect('destroy', this._onNotificationDestroy.bind(this));
+        notification.connect('notify::acknowledged', () => {
+            this.countUpdated();
+
+            // If acknowledged was set to false try to show the notification again
+            if (!notification.acknowledged)
+                this.emit('notification-request-banner', notification);
+        });
+        this.notifications.push(notification);
+
+        this.emit('notification-added', notification);
+        this.emit('notification-request-banner', notification);
+        this.countUpdated();
     }
 
     destroy(reason) {
-        this._destroyedReason = reason;
-        this.actor.destroy();
-    }
-};
-Signals.addSignalMethods(Notification.prototype);
+        this._inDestruction = true;
 
-function Source(title) {
-    this._init(title);
-}
-
-Source.prototype = {
-    ICON_SIZE: 24,
-    MAX_NOTIFICATIONS: 10,
-
-    _init: function (title) {
-        this.title = title;
-
-        this.actor = new St.Bin({
-            x_fill: true,
-            y_fill: true
-        });
-        this.actor.connect('destroy', () => { this._actorDestroyed = true });
-        this._actorDestroyed = false;
-
-        this.isTransient = false;
-        this.isChat = false;
-
-        this.notifications = [];
-    },
-
-    _updateCount: function () {
-        let count = this.notifications.length;
-        if (count > this.MAX_NOTIFICATIONS) {
-            let oldestNotif = this.notifications.shift();
-            oldestNotif.destroy();
-        }
-    },
-
-    setTransient: function (isTransient) {
-        this.isTransient = isTransient;
-    },
-
-    // Called to create a new icon actor (of size this.ICON_SIZE).
-    // Must be overridden by the subclass if you do not pass icons
-    // explicitly to the Notification() constructor.
-    createNotificationIcon: function () {
-        throw new Error('no implementation of createNotificationIcon in ' + this);
-    },
-
-    // Unlike createNotificationIcon, this always returns the same actor;
-    // there is only one summary icon actor for a Source.
-    getSummaryIcon: function () {
-        return this.actor;
-    },
-
-    pushNotification: function (notification) {
-        if (this.notifications.indexOf(notification) < 0) {
-            this.notifications.push(notification);
-            this.emit('notification-added', notification);
+        while (this.notifications.length > 0) {
+            const [oldest] = this.notifications;
+            oldest.destroy(reason);
         }
 
-        notification.connect('clicked', () => { this.open() });
-        notification.connect('destroy', () => {
-            let index = this.notifications.indexOf(notification);
-            if (index < 0)
-                return;
-
-            this.notifications.splice(index, 1);
-            if (this.notifications.length == 0)
-                this._lastNotificationRemoved();
-        });
-
-        this._updateCount();
-    },
-
-    notify: function (notification) {
-        this.pushNotification(notification);
-        this.emit('notify', notification);
-    },
-
-    destroy: function (reason) {
         this.emit('destroy', reason);
-    },
 
-    //// Protected methods ////
-
-    // The subclass must call this at least once to set the summary icon.
-    _setSummaryIcon: function (icon) {
-        if (this.actor.child)
-            this.actor.child.destroy();
-        this.actor.child = icon;
-    },
+        this.policy.destroy();
+        this.run_dispose();
+    }
 
     // Default implementation is to do nothing, but subclasses can override
-    open: function (notification) {
-    },
+    open() {
+    }
 
-    destroyNonResidentNotifications: function () {
+    destroyNonResidentNotifications() {
         for (let i = this.notifications.length - 1; i >= 0; i--)
             if (!this.notifications[i].resident)
                 this.notifications[i].destroy();
-    },
-
-    // Default implementation is to destroy this source, but subclasses can override
-    _lastNotificationRemoved: function () {
-        this.destroy();
     }
-};
-Signals.addSignalMethods(Source.prototype);
+});
 
-function MessageTray() {
-    this._init();
-}
+GObject.registerClass({
+    Properties: {
+        'source': GObject.ParamSpec.object(
+            'source', 'source', 'source',
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT_ONLY,
+            Source),
+        'title': GObject.ParamSpec.string(
+            'title', 'title', 'title',
+            GObject.ParamFlags.READWRITE,
+            null),
+        'body': GObject.ParamSpec.string(
+            'body', 'body', 'body',
+            GObject.ParamFlags.READWRITE,
+            null),
+        'use-body-markup': GObject.ParamSpec.boolean(
+            'use-body-markup', 'use-body-markup', 'use-body-markup',
+            GObject.ParamFlags.READWRITE,
+            false),
+        'gicon': GObject.ParamSpec.object(
+            'gicon', 'gicon', 'gicon',
+            GObject.ParamFlags.READWRITE,
+            Gio.Icon),
+        'icon-name': GObject.ParamSpec.string(
+            'icon-name', 'icon-name', 'icon-name',
+            GObject.ParamFlags.READWRITE,
+            null),
+        // 'sound': GObject.ParamSpec.object(
+        //     'sound', 'sound', 'sound',
+        //     GObject.ParamFlags.READWRITE,
+        //     Sound),
+        'datetime': GObject.ParamSpec.boxed(
+            'datetime', 'datetime', 'datetime',
+            GObject.ParamFlags.READWRITE,
+            GLib.DateTime),
+        // Unfortunately we can't register new enum types in GJS
+        // See: https://gitlab.gnome.org/GNOME/gjs/-/issues/573
+        'privacy-scope': GObject.ParamSpec.int(
+            'privacy-scope', 'privacy-scope', 'privacy-scope',
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT,
+            0, GLib.MAXINT32,
+            PrivacyScope.User),
+        'urgency': GObject.ParamSpec.int(
+            'urgency', 'urgency', 'urgency',
+            GObject.ParamFlags.READWRITE | GObject.ParamFlags.CONSTRUCT,
+            0, GLib.MAXINT32,
+            Urgency.NORMAL),
+        'acknowledged': GObject.ParamSpec.boolean(
+            'acknowledged', 'acknowledged', 'acknowledged',
+            GObject.ParamFlags.READWRITE,
+            false),
+        'resident': GObject.ParamSpec.boolean(
+            'resident', 'resident', 'resident',
+            GObject.ParamFlags.READWRITE,
+            false),
+        'for-feedback': GObject.ParamSpec.boolean(
+            'for-feedback', 'for-feedback', 'for-feedback',
+            GObject.ParamFlags.READWRITE,
+            false),
+        'is-transient': GObject.ParamSpec.boolean(
+            'is-transient', 'is-transient', 'is-transient',
+            GObject.ParamFlags.READWRITE,
+            false),
+    },
+    Signals: {
+        'action-added': {param_types: [Action]},
+        'action-removed': {param_types: [Action]},
+        'activated': {},
+        'destroy': {param_types: [GObject.TYPE_UINT]},
+    },
+}, Notification);
 
-MessageTray.prototype = {
-    _init: function () {
-        this._presence = new GnomeSession.Presence(Lang.bind(this, function (proxy, error) {
-            this._onStatusChanged(proxy.status);
-        }));
-
-        this._userStatus = GnomeSession.PresenceStatus.AVAILABLE;
-        this._busy = false;
-        this._backFromAway = false;
-
-        this._presence.connectSignal('StatusChanged', Lang.bind(this, function (proxy, senderName, [status]) {
-            this._onStatusChanged(status);
-        }));
-
-        this._notificationBin = new St.Bin();
-        this._notificationBin.hide();
-        this._notificationQueue = [];
-        this._notification = null;
-
-        this._locked = false;
-        this._notificationState = State.HIDDEN;
-        this._notificationTimeoutId = 0;
-        this._notificationExpandedId = 0;
-        this._notificationRemoved = false;
-
-        this._sources = [];
-        Main.layoutManager.addChrome(this._notificationBin);
-
-        // Settings
-        this.settings = new Gio.Settings({ schema_id: "org.cinnamon.desktop.notifications" });
-        function setting(self, source, camelCase, dashed) {
-            function updater() { self[camelCase] = source.get_boolean(dashed); }
-            source.connect('changed::' + dashed, updater);
-            updater();
-        }
-        setting(this, this.settings, "_notificationsEnabled", "display-notifications");
-        this.bottomPosition = this.settings.get_boolean("bottom-notifications");
-        this.settings.connect("changed::bottom-notifications", () => {
-            this.bottomPosition = this.settings.get_boolean("bottom-notifications");
+var MessageTray = GObject.registerClass({
+    Signals: {
+        'queue-changed': {},
+        'source-added': {param_types: [Source.$gtype]},
+        'source-removed': {param_types: [Source.$gtype]},
+    },
+}, class MessageTray extends St.Widget {
+    _init() {
+        super._init({
+            visible: false,
+            clip_to_allocation: true,
+            layout_manager: new Clutter.BinLayout(),
         });
 
-        let updateLockState = Lang.bind(this, function () {
+        this._presence = new GnomeSession.Presence((proxy, error) => {
+            this._onStatusChanged(proxy.status);
+        });
+        this._busy = false;
+        this._bannerBlocked = false;
+        this._presence.connectSignal('StatusChanged', (proxy, senderName, [status]) => {
+            this._onStatusChanged(status);
+        });
+
+        let constraint = new Layout.MonitorConstraint({ primary: true });
+        this.add_constraint(constraint);
+
+        this._bannerBin = new St.Widget({
+            name: 'notification-container',
+            reactive: true,
+            track_hover: true,
+            y_align: Clutter.ActorAlign.START,
+            x_align: Clutter.ActorAlign.END,
+            y_expand: true,
+            x_expand: true,
+            layout_manager: new Clutter.BinLayout(),
+        });
+        this._bannerBin.connect('key-release-event',
+            this._onNotificationKeyRelease.bind(this));
+        this._bannerBin.connect('notify::hover',
+            this._onNotificationHoverChanged.bind(this));
+        this.add_child(this._bannerBin);
+
+        this._notificationFocusGrabber = new FocusGrabber(this._bannerBin);
+        this._notificationQueue = [];
+        this._notification = null;
+        this._banner = null;
+
+        this._userActiveWhileNotificationShown = false;
+
+        this.idleMonitor = Meta.IdleMonitor.get_core();
+
+        this._useLongerNotificationLeftTimeout = false;
+
+        /* Fixme */
+        this._locked = false;
+
+        // pointerInNotification is sort of a misnomer -- it tracks whether
+        // a message tray notification should expand. The value is
+        // partially driven by the hover state of the notification, but has
+        // a lot of complex state related to timeouts and the current
+        // state of the pointer when a notification pops up.
+        this._pointerInNotification = false;
+
+        // This tracks this._bannerBin.hover and is used to fizzle
+        // out non-changing hover notifications in onNotificationHoverChanged.
+        this._notificationHovered = false;
+
+        this._notificationState = State.HIDDEN;
+        this._notificationTimeoutId = 0;
+        this._notificationRemoved = false;
+
+        Main.layoutManager.addChrome(this, { affectsInputRegion: false });
+        Main.layoutManager.trackChrome(this._bannerBin, { affectsInputRegion: true });
+
+        this._sources = new Set();
+
+        /* Fixme */
+        let updateLockState = () => {
             if (this._locked) {
                 this._unlock();
             } else {
                 this._updateState();
             }
-        });
+        };
 
         Main.overview.connect('showing', updateLockState);
         Main.overview.connect('hiding', updateLockState);
         Main.expo.connect('showing', updateLockState);
         Main.expo.connect('hiding', updateLockState);
-    },
 
-    contains: function (source) {
-        return this._getSourceIndex(source) >= 0;
-    },
-
-    _getSourceIndex: function (source) {
-        return this._sources.indexOf(source);
-    },
-
-    add: function (source) {
-        if (this.contains(source)) {
-            log('Trying to re-add source ' + source.title);
-            return;
-        }
-
-        source.connect('notify', Lang.bind(this, this._onNotify));
-
-        source.connect('destroy', Lang.bind(this, this._onSourceDestroy));
-    },
-
-    _onSourceDestroy: function (source) {
-        let index = this._getSourceIndex(source);
-        if (index == -1)
-            return;
-
-        this._sources.splice(index, 1);
-
-        let needUpdate = false;
-
-        if (this._notification && this._notification.source == source) {
-            this._updateNotificationTimeout(0);
-            this._notificationRemoved = true;
-            needUpdate = true;
-        }
-
-        if (needUpdate)
-            this._updateState();
-    },
-
-    _onNotificationDestroy: function (notification) {
-        if (this._notification == notification && (this._notificationState == State.SHOWN || this._notificationState == State.SHOWING)) {
-            this._updateNotificationTimeout(0);
-            this._notificationRemoved = true;
-            this._updateState();
-            return;
-        }
-
-        let index = this._notificationQueue.indexOf(notification);
-        notification.destroy();
-        if (index != -1)
-            this._notificationQueue.splice(index, 1);
-    },
-
-    _lock: function () {
-        this._locked = true;
-    },
-
-    _unlock: function () {
-        if (!this._locked)
-            return;
-        this._locked = false;
         this._updateState();
-    },
+    }
 
-    _onNotify: function (source, notification) {
-        if (this._notification == notification) {
+    get bannerAlignment() {
+        return this._bannerBin.get_x_align();
+    }
+
+    set bannerAlignment(align) {
+        this._bannerBin.set_x_align(align);
+    }
+
+    _onNotificationKeyRelease(actor, event) {
+        if (event.get_key_symbol() === Clutter.KEY_Escape && event.get_state() === 0) {
+            this._expireNotification();
+            return Clutter.EVENT_STOP;
+        }
+
+        return Clutter.EVENT_PROPAGATE;
+    }
+
+    _expireNotification() {
+        this._notificationExpired = true;
+        this._updateState();
+    }
+
+    get queueCount() {
+        return this._notificationQueue.length;
+    }
+
+    set bannerBlocked(v) {
+        if (this._bannerBlocked === v)
+            return;
+        this._bannerBlocked = v;
+        this._updateState();
+    }
+
+    contains(source) {
+        return this._sources.has(source);
+    }
+
+    add(source) {
+        if (this.contains(source)) {
+            log(`Trying to re-add source ${source.title}`);
+            return;
+        }
+
+        // Register that we got a notification for this source
+        source.policy.store();
+
+        source.policy.connect('notify::enable', () => {
+            this._onSourceEnableChanged(source.policy, source);
+        });
+        source.policy.connect('notify', this._updateState.bind(this));
+        this._onSourceEnableChanged(source.policy, source);
+    }
+
+    _addSource(source) {
+        this._sources.add(source);
+
+        source.connectObject(
+            'notification-request-banner', this._onNotificationRequestBanner.bind(this),
+            'notification-removed', this._onNotificationRemoved.bind(this),
+            'destroy', () => this._removeSource(source), this);
+
+        this.emit('source-added', source);
+    }
+
+    _removeSource(source) {
+        this._sources.delete(source);
+        source.disconnectObject(this);
+        this.emit('source-removed', source);
+    }
+
+    getSources() {
+        return [...this._sources.keys()];
+    }
+
+    _onSourceEnableChanged(policy, source) {
+        let wasEnabled = this.contains(source);
+        let shouldBeEnabled = policy.enable;
+
+        if (wasEnabled !== shouldBeEnabled) {
+            if (shouldBeEnabled)
+                this._addSource(source);
+            else
+                this._removeSource(source);
+        }
+    }
+
+    _onNotificationRemoved(source, notification) {
+        if (this._notification === notification) {
+            this._notificationRemoved = true;
+            if (this._notificationState === State.SHOWN ||
+                this._notificationState === State.SHOWING) {
+                this._pointerInNotification = false;
+                this._updateNotificationTimeout(0);
+                this._updateState();
+            }
+        } else {
+            const index = this._notificationQueue.indexOf(notification);
+            if (index !== -1) {
+                this._notificationQueue.splice(index, 1);
+                this.emit('queue-changed');
+            }
+        }
+    }
+
+    _onNotificationRequestBanner(_source, notification) {
+        // We never display a banner for already acknowledged notifications
+        if (notification.acknowledged)
+            return;
+
+        if (notification.urgency === Urgency.LOW)
+            return;
+
+        if (!notification.source.policy.displayNotifications && notification.urgency !== Urgency.CRITICAL)
+            return;
+
+        if (this._notification === notification) {
             // If a notification that is being shown is updated, we update
             // how it is shown and extend the time until it auto-hides.
             // If a new notification is updated while it is being hidden,
             // we stop hiding it and show it again.
             this._updateShowingNotification();
-        } else if (this._notificationQueue.indexOf(notification) < 0) {
-            notification.connect('destroy',
-                Lang.bind(this, this._onNotificationDestroy));
-            this._notificationQueue.push(notification);
-            this._notificationQueue.sort(function (notification1, notification2) {
-                return (notification2.urgency - notification1.urgency);
-            });
+        } else if (!this._notificationQueue.includes(notification)) {
+            // If the queue is "full", we skip banner mode and just show a small
+            // indicator in the panel; however do make an exception for CRITICAL
+            // notifications, as only banner mode allows expansion.
+            let bannerCount = this._notification ? 1 : 0;
+            let full = this.queueCount + bannerCount >= MAX_NOTIFICATIONS_IN_QUEUE;
+            if (!full || notification.urgency === Urgency.CRITICAL) {
+                this._notificationQueue.push(notification);
+                this._notificationQueue.sort(
+                    (n1, n2) => n2.urgency - n1.urgency);
+                this.emit('queue-changed');
+            }
         }
         this._updateState();
-    },
+    }
 
-    _onStatusChanged: function (status) {
-        this._backFromAway = (this._userStatus == GnomeSession.PresenceStatus.IDLE && this._userStatus != status);
-        this._userStatus = status;
+    _resetNotificationLeftTimeout() {
+        this._useLongerNotificationLeftTimeout = false;
+        if (this._notificationLeftTimeoutId) {
+            GLib.source_remove(this._notificationLeftTimeoutId);
+            this._notificationLeftTimeoutId = 0;
+            this._notificationLeftMouseX = -1;
+            this._notificationLeftMouseY = -1;
+        }
+    }
 
-        if (status == GnomeSession.PresenceStatus.BUSY) {
+    _onNotificationHoverChanged() {
+        if (this._bannerBin.hover === this._notificationHovered)
+            return;
+
+        this._notificationHovered = this._bannerBin.hover;
+        if (this._notificationHovered) {
+            this._resetNotificationLeftTimeout();
+
+            if (this._showNotificationMouseX >= 0) {
+                let actorAtShowNotificationPosition =
+                    global.stage.get_actor_at_pos(Clutter.PickMode.ALL, this._showNotificationMouseX, this._showNotificationMouseY);
+                this._showNotificationMouseX = -1;
+                this._showNotificationMouseY = -1;
+                // Don't set this._pointerInNotification to true if the pointer was initially in the area where the notification
+                // popped up. That way we will not be expanding notifications that happen to pop up over the pointer
+                // automatically. Instead, the user is able to expand the notification by mousing away from it and then
+                // mousing back in. Because this is an expected action, we set the boolean flag that indicates that a longer
+                // timeout should be used before popping down the notification.
+                if (this._bannerBin.contains(actorAtShowNotificationPosition)) {
+                    this._useLongerNotificationLeftTimeout = true;
+                    return;
+                }
+            }
+
+            this._pointerInNotification = true;
+            this._updateState();
+        } else {
+            // We record the position of the mouse the moment it leaves the tray. These coordinates are used in
+            // this._onNotificationLeftTimeout() to determine if the mouse has moved far enough during the initial timeout for us
+            // to consider that the user intended to leave the tray and therefore hide the tray. If the mouse is still
+            // close to its previous position, we extend the timeout once.
+            let [x, y] = global.get_pointer();
+            this._notificationLeftMouseX = x;
+            this._notificationLeftMouseY = y;
+
+            // We wait just a little before hiding the message tray in case the user quickly moves the mouse back into it.
+            // We wait for a longer period if the notification popped up where the mouse pointer was already positioned.
+            // That gives the user more time to mouse away from the notification and mouse back in in order to expand it.
+            let timeout = this._useLongerNotificationLeftTimeout ? LONGER_HIDE_TIMEOUT : HIDE_TIMEOUT;
+            this._notificationLeftTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeout, this._onNotificationLeftTimeout.bind(this));
+            GLib.Source.set_name_by_id(this._notificationLeftTimeoutId, '[cinnamon] this._onNotificationLeftTimeout');
+        }
+    }
+
+    _onStatusChanged(status) {
+        if (status === GnomeSession.PresenceStatus.BUSY) {
             // remove notification and allow the summary to be closed now
             this._updateNotificationTimeout(0);
             this._busy = true;
-        } else if (status != GnomeSession.PresenceStatus.IDLE) {
+        } else if (status !== GnomeSession.PresenceStatus.IDLE) {
             // We preserve the previous value of this._busy if the status turns to IDLE
             // so that we don't start showing notifications queued during the BUSY state
             // as the screensaver gets activated.
@@ -889,264 +1093,318 @@ MessageTray.prototype = {
         }
 
         this._updateState();
-    },
+    }
 
-    // All of the logic for what happens when occurs here; the various
-    // event handlers merely update variables and
-    // _updateState() figures out what (if anything) needs to be done
-    // at the present time.
-    _updateState: function () {
-        // Notifications
-        let notificationUrgent = this._notificationQueue.length > 0 && this._notificationQueue[0].urgency == Urgency.CRITICAL;
-        let notificationsPending = this._notificationQueue.length > 0 && (!this._busy || notificationUrgent);
-
-        let notificationExpired = (this._notificationTimeoutId == 0 &&
-            !(this._notification && this._notification.urgency == Urgency.CRITICAL) &&
-            !this._locked
-        ) || this._notificationRemoved;
-        let canShowNotification = notificationsPending && this._notificationsEnabled;
-
-        if (this._notificationState == State.HIDDEN) {
-            if (canShowNotification) {
-                this._showNotification();
-            }
-            else if (!this._notificationsEnabled) {
-                if (notificationsPending) {
-                    this._notification = this._notificationQueue.shift();
-                    if (AppletManager.get_role_provider_exists(AppletManager.Roles.NOTIFICATIONS)) {
-                        this.emit('notify-applet-update', this._notification);
-                    } else {
-                        this._notification.destroy(NotificationDestroyedReason.DISMISSED);
-                        this._notification = null;
-                    }
-                }
-            }
-        } else if (this._notificationState == State.SHOWN) {
-            if (notificationExpired)
-                this._hideNotification();
-        }
-    },
-
-    _tween: function (actor, statevar, value, params) {
-        let onComplete = params.onComplete;
-        let onCompleteScope = params.onCompleteScope;
-        let onCompleteParams = params.onCompleteParams;
-
-        params.onComplete = this._tweenComplete;
-        params.onCompleteScope = this;
-        params.onCompleteParams = [statevar, value, onComplete, onCompleteScope, onCompleteParams];
-
-        Tweener.addTween(actor, params);
-
-        let valuing = (value == State.SHOWN) ? State.SHOWING : State.HIDING;
-        this[statevar] = valuing;
-    },
-
-    _tweenComplete: function (statevar, value, onComplete, onCompleteScope, onCompleteParams) {
-        this[statevar] = value;
-        if (onComplete)
-            onComplete.apply(onCompleteScope, onCompleteParams);
-        this._updateState();
-    },
-
-    _showNotification: function () {
-        this._notification = this._notificationQueue.shift();
-        if (this._notification.actor._parent_container) {
-            this._notification.actor._parent_container.remove_actor(this._notification.actor);
-        }
-
-        this._notificationBin.child = this._notification.actor;
-        this._notificationBin.opacity = 0;
-
-        this._monitor = Main.layoutManager.primaryMonitor;
-        this._notificationScreenDisplay = this.settings.get_string("notification-screen-display");
-        let monitors = Main.layoutManager.monitors;
-        switch (this._notificationScreenDisplay) {
-            case "active-screen":
-                this._monitor = Main.layoutManager.currentMonitor;
-                break;
-            case "fixed-screen":
-                this._fixedScreenNum = this.settings.get_int("notification-fixed-screen");
-                if (this._fixedScreenNum <= monitors.length)
-                    this._monitor = monitors[this._fixedScreenNum - 1];
-        }
-        let topPanel = Main.panelManager.getPanel(this._monitor.index, 0);
-        let bottomPanel = Main.panelManager.getPanel(this._monitor.index, 1);
-        let rightPanel = Main.panelManager.getPanel(this._monitor.index, 3);
-        let topGap = 10;
-        let bottomGap = 10;
-        let rightGap = 0;
-
-        if (rightPanel) {
-            rightGap += rightPanel.actor.get_width();
-        }
-
-        if (!this.bottomPosition) {
-            if (topPanel) {
-                topGap += topPanel.actor.get_height();
-            }
-            this._notificationBin.y = this._monitor.y + topGap; // Notifications appear from here (for the animation)
-        }
-
-        let margin = this._notification._table.get_theme_node().get_length('margin-from-right-edge-of-screen');
-        this._notificationBin.x = this._monitor.x + this._monitor.width - this._notification._table.width - margin - rightGap;
-        if (!this._notification.silent || this._notification.urgency >= Urgency.HIGH) {
-            Main.soundManager.play('notification');
-        }
-
-        this._showFullscreenNotifications = this.settings.get_boolean("fullscreen-notifications");
-        if (this._notification.urgency == Urgency.CRITICAL || this._showFullscreenNotifications) {
-            Main.layoutManager._chrome.modifyActorParams(this._notificationBin, { visibleInFullscreen: true });
+    _onNotificationLeftTimeout() {
+        let [x, y] = global.get_pointer();
+        // We extend the timeout once if the mouse moved no further than MOUSE_LEFT_ACTOR_THRESHOLD to either side.
+        if (this._notificationLeftMouseX > -1 &&
+            y < this._notificationLeftMouseY + MOUSE_LEFT_ACTOR_THRESHOLD &&
+            y > this._notificationLeftMouseY - MOUSE_LEFT_ACTOR_THRESHOLD &&
+            x < this._notificationLeftMouseX + MOUSE_LEFT_ACTOR_THRESHOLD &&
+            x > this._notificationLeftMouseX - MOUSE_LEFT_ACTOR_THRESHOLD) {
+            this._notificationLeftMouseX = -1;
+            this._notificationLeftTimeoutId = GLib.timeout_add(
+                GLib.PRIORITY_DEFAULT,
+                LONGER_HIDE_TIMEOUT,
+                this._onNotificationLeftTimeout.bind(this));
+            GLib.Source.set_name_by_id(this._notificationLeftTimeoutId, '[cinnamon] this._onNotificationLeftTimeout');
         } else {
-            Main.layoutManager._chrome.modifyActorParams(this._notificationBin, { visibleInFullscreen: false });
+            this._notificationLeftTimeoutId = 0;
+            this._useLongerNotificationLeftTimeout = false;
+            this._pointerInNotification = false;
+            this._updateNotificationTimeout(0);
+            this._updateState();
         }
-        this._notificationBin.show();
+        return GLib.SOURCE_REMOVE;
+    }
 
-        if (this.bottomPosition) {
-            if (bottomPanel) {
-                bottomGap += bottomPanel.actor.get_height();
+    _updateState() {
+        let hasMonitor = Main.layoutManager.primaryMonitor != null;
+        this.visible = !this._bannerBlocked && hasMonitor && this._banner != null;
+        if (this._bannerBlocked || !hasMonitor)
+            return;
+
+        // If our state changes caused _updateState to be called,
+        // just exit now to prevent reentrancy issues.
+        if (this._updatingState)
+            return;
+
+        this._updatingState = true;
+
+        // Filter out acknowledged notifications.
+        let changed = false;
+        this._notificationQueue = this._notificationQueue.filter(n => {
+            changed ||= n.acknowledged;
+            return !n.acknowledged;
+        });
+
+        if (changed)
+            this.emit('queue-changed');
+
+        /* Fixme -- for session mode */
+        let hasNotifications = true;
+
+        if (this._notificationState === State.HIDDEN) {
+            let nextNotification = this._notificationQueue[0] || null;
+            if (hasNotifications && nextNotification) {
+                let limited = this._busy || Main.layoutManager.primaryMonitor.inFullscreen;
+                let showNextNotification = !limited || nextNotification.forFeedback || nextNotification.urgency === Urgency.CRITICAL;
+                if (showNextNotification)
+                    this._showNotification();
             }
-            let getBottomPositionY = () => {
-                return this._monitor.y + this._monitor.height - this._notificationBin.height - bottomGap;
-            };
-            let shouldReturn = false;
-            let initialY = getBottomPositionY();
-            // For multi-line notifications, the correct height will not be known until the notification is done animating,
-            // so this will set _notificationBin.y when queue-redraw is emitted, and return early if the  height decreases
-            // to prevent unnecessary property setting.
-            this.bottomPositionSignal = this._notificationBin.connect('queue-redraw', () => {
-                if (shouldReturn) {
-                    return;
-                }
-                this._notificationBin.y = getBottomPositionY();
-                if (initialY > this._notificationBin.y) {
-                    shouldReturn = true;
-                }
-            });
+        } else if (this._notificationState === State.SHOWING ||
+                   this._notificationState === State.SHOWN) {
+            let expired = (this._userActiveWhileNotificationShown &&
+                           this._notificationTimeoutId === 0 &&
+                           this._notification.urgency !== Urgency.CRITICAL &&
+                           !this._pointerInNotification) || this._notificationExpired;
+            let mustClose = this._notificationRemoved || !hasNotifications || expired;
+
+            if (mustClose) {
+                let animate = hasNotifications && !this._notificationRemoved;
+                this._hideNotification(animate);
+            } else if (this._notificationState === State.SHOWN &&
+                       this._pointerInNotification) {
+                if (!this._banner.expanded)
+                    this._expandBanner(false);
+                else
+                    this._ensureBannerFocused();
+            }
         }
 
+        this._updatingState = false;
+
+        // Clean transient variables that are used to communicate actions
+        // to updateState()
+        this._notificationExpired = false;
+    }
+
+    _onIdleMonitorBecameActive() {
+        this._userActiveWhileNotificationShown = true;
+        this._updateNotificationTimeout(2000);
+        this._updateState();
+    }
+
+    _showNotification() {
+        this._notification = this._notificationQueue.shift();
+        this.emit('queue-changed');
+
+        this._userActiveWhileNotificationShown = this.idleMonitor.get_idletime() <= IDLE_TIME;
+        if (!this._userActiveWhileNotificationShown) {
+            // If the user isn't active, set up a watch to let us know
+            // when the user becomes active.
+            this.idleMonitor.add_user_active_watch(this._onIdleMonitorBecameActive.bind(this));
+        }
+
+        this._banner = new NotificationMessage(this._notification);
+        this._banner.can_focus = false;
+        this._banner._header.expandButton.visible = false;
+        this._banner.add_style_class_name('notification-banner');
+
+        this._bannerBin.add_child(this._banner);
+
+        this._bannerBin.opacity = 0;
+        this._bannerBin.y = 0;
+        this.show();
+
+        Meta.disable_unredirect_for_display(global.display);
         this._updateShowingNotification();
 
-        let [x, y, mods] = global.get_pointer();
-        // We save the distance of the mouse to the notification at the time
-        // when we started showing the it and then we update it in
-        // _notifiationTimeout() if the mouse is moving towards the notification.
-        // We don't pop down the notification if the mouse is moving towards it.
-        this._lastSeenMouseDistance = Math.abs(this._notificationBin.y - y);
-    },
+        let [x, y] = global.get_pointer();
+        // We save the position of the mouse at the time when we started showing the notification
+        // in order to determine if the notification popped up under it. We make that check if
+        // the user starts moving the mouse and _onNotificationHoverChanged() gets called. We don't
+        // expand the notification if it just happened to pop up under the mouse unless the user
+        // explicitly mouses away from it and then mouses back in.
+        this._showNotificationMouseX = x;
+        this._showNotificationMouseY = y;
+        // We save the coordinates of the mouse at the time when we started showing the notification
+        // and then we update it in _notificationTimeout(). We don't pop down the notification if
+        // the mouse is moving towards it or within it.
+        this._lastSeenMouseX = x;
+        this._lastSeenMouseY = y;
 
-    _updateShowingNotification: function () {
-        Tweener.removeTweens(this._notificationBin);
-        let tweenParams = {
+        this._resetNotificationLeftTimeout();
+    }
+
+    _updateShowingNotification() {
+        this._notification.acknowledged = true;
+        /* Fixme */
+        // this._notification.playSound();
+
+        // We auto-expand notifications with CRITICAL urgency, or for which the relevant setting
+        // is on in the control center.
+        if (this._notification.urgency === Urgency.CRITICAL ||
+            this._notification.source.policy.forceExpanded)
+            this._expandBanner(true);
+
+        // We tween all notifications to full opacity. This ensures that both new notifications and
+        // notifications that might have been in the process of hiding get full opacity.
+        //
+        // We tween any notification showing in the banner mode to the appropriate height
+        // (which is banner height or expanded height, depending on the notification state)
+        // This ensures that both new notifications and notifications in the banner mode that might
+        // have been in the process of hiding are shown with the correct height.
+        //
+        // We use this._showNotificationCompleted() onComplete callback to extend the time the updated
+        // notification is being shown.
+
+        this._notificationState = State.SHOWING;
+        this._bannerBin.remove_all_transitions();
+        this._bannerBin.ease({
             opacity: 255,
-            time: ANIMATION_TIME,
-            transition: 'easeOutQuad',
-            onComplete: this._showNotificationCompleted,
-            onCompleteScope: this
-        };
-        this._tween(this._notificationBin, '_notificationState', State.SHOWN, tweenParams);
-    },
+            duration: ANIMATION_TIME,
+            mode: Clutter.AnimationMode.LINEAR,
+        });
+        this._bannerBin.ease({
+            y: 0,
+            duration: ANIMATION_TIME,
+            mode: Clutter.AnimationMode.LINEAR,
+            onComplete: () => {
+                this._notificationState = State.SHOWN;
+                this._showNotificationCompleted();
+                this._updateState();
+            },
+        });
+    }
 
-    _showNotificationCompleted: function () {
-        this._updateNotificationTimeout(0);
-        this.notificationDuration = this.settings.get_int("notification-duration");
+    _showNotificationCompleted() {
+        if (this._notification.urgency !== Urgency.CRITICAL)
+            this._updateNotificationTimeout(NOTIFICATION_TIMEOUT);
+    }
 
-        if (this._notification.urgency != Urgency.CRITICAL) {
-            this._updateNotificationTimeout(this.notificationDuration * 1000);
-        } else if (AppletManager.get_role_provider_exists(AppletManager.Roles.NOTIFICATIONS)) {
-            this._updateNotificationTimeout(NOTIFICATION_CRITICAL_TIMEOUT_WITH_APPLET * 1000);
-        }
-    },
-
-    _updateNotificationTimeout: function (timeout) {
-        if (this._notificationTimeoutId > 0) {
-            Mainloop.source_remove(this._notificationTimeoutId);
+    _updateNotificationTimeout(timeout) {
+        if (this._notificationTimeoutId) {
+            GLib.source_remove(this._notificationTimeoutId);
             this._notificationTimeoutId = 0;
         }
-        if (timeout > 0)
+        if (timeout > 0) {
             this._notificationTimeoutId =
-                Mainloop.timeout_add(timeout,
-                    Lang.bind(this, this._notificationTimeout));
-    },
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeout,
+                    this._notificationTimeout.bind(this));
+            GLib.Source.set_name_by_id(this._notificationTimeoutId, '[cinnamon] this._notificationTimeout');
+        }
+    }
 
-    _notificationTimeout: function () {
-        let [x, y, mods] = global.get_pointer();
-        let distance = Math.abs(this._notificationBin.y - y);
-        if (distance < this._lastSeenMouseDistance - 50 || this._notification && this._notification.actor.hover) {
+    _notificationTimeout() {
+        let [x, y] = global.get_pointer();
+        if (y < this._lastSeenMouseY - 10 && !this._notificationHovered) {
             // The mouse is moving towards the notification, so don't
             // hide it yet. (We just create a new timeout (and destroy
-            // the old one) each time because the bookkeeping is simpler.)
-
-            this._lastSeenMouseDistance = distance;
+            // the old one) each time because the bookkeeping is
+            // simpler.)
+            this._updateNotificationTimeout(1000);
+        } else if (this._useLongerNotificationLeftTimeout && !this._notificationLeftTimeoutId &&
+                  (x !== this._lastSeenMouseX || y !== this._lastSeenMouseY)) {
+            // Refresh the timeout if the notification originally
+            // popped up under the pointer, and the pointer is hovering
+            // inside it.
             this._updateNotificationTimeout(1000);
         } else {
             this._notificationTimeoutId = 0;
             this._updateState();
         }
 
-        return false;
-    },
+        this._lastSeenMouseX = x;
+        this._lastSeenMouseY = y;
+        return GLib.SOURCE_REMOVE;
+    }
 
-    _hideNotification: function () {
-        let y = Main.layoutManager.primaryMonitor.y;
+    _hideNotification(animate) {
+        this._notificationFocusGrabber.ungrabFocus();
 
-        if (this.bottomPosition) {
-            if (this.bottomPositionSignal) {
-                this._notificationBin.disconnect(this.bottomPositionSignal);
-            }
-            y += Main.layoutManager.primaryMonitor.height - this._notificationBin.height;
-        }
+        this._banner.disconnectObject(this);
 
-        this._tween(this._notificationBin, '_notificationState', State.HIDDEN, {
-            y,
+        this._resetNotificationLeftTimeout();
+        this._bannerBin.remove_all_transitions();
+
+        const duration = animate ? ANIMATION_TIME : 0;
+        this._notificationState = State.HIDING;
+        this._bannerBin.ease({
             opacity: 0,
-            time: ANIMATION_TIME,
-            transition: 'easeOutQuad',
-            onComplete: this._hideNotificationCompleted,
-            onCompleteScope: this
+            duration,
+            mode: Clutter.AnimationMode.LINEAR,
         });
-    },
+        this._bannerBin.ease({
+            y: 0,
+            duration,
+            mode: Clutter.AnimationMode.LINEAR,
+            onComplete: () => {
+                this._notificationState = State.HIDDEN;
+                this._hideNotificationCompleted();
+                this._updateState();
+            },
+        });
+    }
 
-    _hideNotificationCompleted: function () {
-        this._notificationBin.hide();
-        this._notificationBin.child = null;
+    _hideNotificationCompleted() {
         let notification = this._notification;
-        if (AppletManager.get_role_provider_exists(AppletManager.Roles.NOTIFICATIONS) && !this._notificationRemoved) {
-            this.emit('notify-applet-update', notification);
-        } else {
-            if (notification.isTransient)
-                notification.destroy(NotificationDestroyedReason.EXPIRED);
-        }
         this._notification = null;
+        if (!this._notificationRemoved && notification.isTransient)
+            notification.destroy(NotificationDestroyedReason.EXPIRED);
+
+        this._pointerInNotification = false;
         this._notificationRemoved = false;
+        Meta.enable_unredirect_for_display(global.display);
+
+        this._banner.destroy();
+        this._banner = null;
+        this.hide();
     }
-};
-Signals.addSignalMethods(MessageTray.prototype);
 
+    _expandActiveNotification() {
+        if (!this._banner)
+            return;
 
+        this._expandBanner(false);
+    }
 
-function SystemNotificationSource() {
-    this._init();
-}
+    _expandBanner(autoExpanding) {
+        // Don't animate changes in notifications that are auto-expanding.
+        this._banner.expand(!autoExpanding);
 
-SystemNotificationSource.prototype = {
-    __proto__: Source.prototype,
+        // Don't focus notifications that are auto-expanding.
+        if (!autoExpanding)
+            this._ensureBannerFocused();
+    }
 
-    _init: function () {
-        Source.prototype._init.call(this, _("System Information"));
+    _ensureBannerFocused() {
+        this._notificationFocusGrabber.grabFocus();
+    }
+    /* Fixme */
+    _lock() {
+        this._locked = true;
+    }
 
-        this._setSummaryIcon(this.createNotificationIcon());
-    },
+    _unlock() {
+        if (!this._locked)
+            return;
+        this._locked = false;
+        this._updateState();
+    }
 
-    createNotificationIcon: function () {
-        return new St.Icon({
-            icon_name: 'dialog-information',
-            icon_type: St.IconType.SYMBOLIC,
-            icon_size: this.ICON_SIZE
+});
+
+let systemNotificationSource = null;
+
+/**
+ * The {Source} that should be used to send system notifications.
+ *
+ * @returns {Source}
+ */
+function getSystemSource() {
+    if (!systemNotificationSource) {
+        systemNotificationSource = new Source({
+            title: _('System'),
+            iconName: 'emblem-system-symbolic',
         });
-    },
 
-    open: function () {
-        this.destroy();
+        systemNotificationSource.connect('destroy', () => {
+            systemNotificationSource = null;
+        });
+        Main.messageTray.add(systemNotificationSource);
     }
-};
+
+    return systemNotificationSource;
+}
