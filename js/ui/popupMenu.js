@@ -88,7 +88,9 @@ function arrowIcon(side) {
                               icon_name: iconName,
                               icon_type: St.IconType.SYMBOLIC,
                               y_expand: true,
+                              x_expand: true,
                               y_align: Clutter.ActorAlign.CENTER,
+                              x_align: Clutter.ActorAlign.END,
                               important: true });
 
     return arrow;
